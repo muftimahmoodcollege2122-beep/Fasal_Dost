@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "فصل دوست",
+    "slug": "fasaldost",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#061206"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#061206"
+      },
+      "package": "com.fasaldost.app"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9f8b116d-5c4d-4463-a4f8-bafd57f72798"
+      }
+    }
+  }
+}

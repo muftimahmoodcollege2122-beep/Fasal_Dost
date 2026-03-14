@@ -1,0 +1,94 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "host.exp.exponent",
+    "module": "expo.modules.blur",
+    "version": "55.0.9",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.0.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "expo.modules.blur-55.0.9.aar",
+          "url": "expo.modules.blur-55.0.9.aar",
+          "size": 33531,
+          "sha512": "c41eb04ff1a077dc79068fa642f9a2f52adf62a7569f0428581475ffc0d4a04ad50d5d57d287bf16ea1e774ee7c7f166706941c5a89f7883c25714deeb3ac1ba",
+          "sha256": "2f0d7faa03cda49d2f50e0e65aa65c31ad3732eb780ee269453c0fdbfb0cdc98",
+          "sha1": "0f6fa2b61e1c5e3a7cd40e36bfbc7255e31ace8c",
+          "md5": "4560008aa000e4b68481520abd1ce677"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-jdk7",
+          "version": {
+            "requires": "2.1.20"
+          }
+        },
+        {
+          "group": "com.github.Dimezis",
+          "module": "BlurView",
+          "version": {
+            "requires": "version-3.1.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "expo.modules.blur-55.0.9.aar",
+          "url": "expo.modules.blur-55.0.9.aar",
+          "size": 33531,
+          "sha512": "c41eb04ff1a077dc79068fa642f9a2f52adf62a7569f0428581475ffc0d4a04ad50d5d57d287bf16ea1e774ee7c7f166706941c5a89f7883c25714deeb3ac1ba",
+          "sha256": "2f0d7faa03cda49d2f50e0e65aa65c31ad3732eb780ee269453c0fdbfb0cdc98",
+          "sha1": "0f6fa2b61e1c5e3a7cd40e36bfbc7255e31ace8c",
+          "md5": "4560008aa000e4b68481520abd1ce677"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseSourcePublication",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "expo.modules.blur-55.0.9-sources.jar",
+          "url": "expo.modules.blur-55.0.9-sources.jar",
+          "size": 6640,
+          "sha512": "e2197d91ffa84e3f45941973b86950a3003b51c3cc3493051b0c99d7352c8d149548d56599c52e49edc37e35d0d80c3965df339b26f547b791685660dd148d7c",
+          "sha256": "a4989375ea38d17c3c05e0b84dc037d8d59ac6b81eecff3d846a39b3c5229715",
+          "sha1": "5b64201be7c93aa198ee9d5f5c8fb52d82d7cc46",
+          "md5": "86efa2937dd265515ee738af5759ea30"
+        }
+      ]
+    }
+  ]
+}
