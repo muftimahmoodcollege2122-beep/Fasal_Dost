@@ -2,89 +2,101 @@
 // src/utils/api.js
 //
 // PURPOSE:
-//   Handles all communication with the AI vision API.
-//   Sends a crop image (base64) to the AI and returns a structured
-//   disease detection result.
+//   Handles all AI vision API communication for crop disease detection.
 //
-// MULTI-PROVIDER FALLBACK SYSTEM:
-//   Provider 1 — OpenRouter + Gemini 2.0 Flash  (best quality, paid)
-//   Provider 2 — OpenRouter + Llama Vision       (free, good backup)
-//   Provider 3 — Google AI Studio direct         (independent fallback)
+// ARCHITECTURE — HYBRID SMART DETECTION:
 //
-//   The app tries Provider 1 first. If it fails for any reason
-//   (API down, quota exceeded, network timeout) it automatically
-//   and silently tries Provider 2, then Provider 3.
-//   The farmer never sees an error unless ALL THREE fail simultaneously.
+//   Phase 1 — FAST PATH (single provider, cheap):
+//     Call Provider 1 (Gemini) alone.
+//     If confidence >= 80% → return immediately. Fast and cheap.
 //
-// SETUP — Replace the placeholder keys below:
-//   OPENROUTER_KEY  → https://openrouter.ai  (sk-or-v1-...)
-//   GOOGLE_AI_KEY   → https://aistudio.google.com → Get API Key (AIzaSy...)
+//   Phase 2 — ACCURACY PATH (parallel majority vote, triggered when uncertain):
+//     If Phase 1 confidence < 80% → call ALL providers simultaneously.
+//     Compare results. Return the majority verdict.
+//     2 out of 3 providers agreeing = high reliability diagnosis.
 //
-// RESPONSE FORMAT:
-//   The API returns a structured JSON object with:
-//   - crop_detected_en/ur   — identified crop name
-//   - overall_confidence    — 0-100% how certain the AI is
-//   - image_quality         — 'good' or 'unclear'
-//   - is_healthy            — true if no diseases found
-//   - diseases[]            — array of all detected diseases
-//   - prevention_en/ur      — general prevention advice
+//   This means:
+//     Clear disease cases   → 1 API call  → fast, cheap
+//     Uncertain cases       → 3 API calls → accurate, slightly more expensive
 //
-// ERROR TYPES:
-//   'LOW_CONFIDENCE' — image is blurry or not a crop (thrown as Error)
-//   'NETWORK_ERROR'  — all providers failed / no internet
-//   Other strings    — API or parsing errors
+// PROVIDERS (in priority order):
+//   1. OpenRouter + Gemini 2.0 Flash  — best quality, primary
+//   2. OpenRouter + Llama Vision Free — free backup
+//   3. Google AI Studio direct        — independent, free tier
+//
+// MAJORITY VOTE LOGIC:
+//   Each provider returns a disease name (or "healthy").
+//   The answer that appears most across all providers wins.
+//   Tie goes to the more cautious answer (disease over healthy).
+//
+// SETUP:
+//   OPENROUTER_KEY → https://openrouter.ai  (sk-or-v1-...)
+//   GOOGLE_AI_KEY  → https://aistudio.google.com (AIzaSy...)
+//
+// ERROR TYPES THROWN:
+//   'LOW_CONFIDENCE'  — image unclear, farmer should retake photo
+//   'NETWORK_ERROR'   — all providers failed
+//   Other strings     — API or parsing errors
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Provider keys — replace with your real keys ──────────────────────────────
-// ⚠️  Never push real keys to GitHub
+// ── Secret Keys ───────────────────────────────────────────────────────────────
+// Replace with your real keys. Never push to GitHub.
 const OPENROUTER_KEY = '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'; // sk-or-v1-...
 const GOOGLE_AI_KEY  = 'AIzaSyCcftyZtQ5oq3iwGWd-7dRSz1FlSx6rJ8E';  // AIzaSy...
 
+// ── Confidence thresholds ─────────────────────────────────────────────────────
+const CONFIDENCE_FAST_PATH    = 80; // Above this → return immediately (Phase 1)
+const CONFIDENCE_MIN_ACCEPT   = 65; // Below this → reject as too uncertain
+const DISEASE_MIN_CONFIDENCE  = 60; // Per-disease minimum to be included
+
 // ── Provider configurations ───────────────────────────────────────────────────
-// Each provider is tried in order. If one fails, the next is attempted.
 const PROVIDERS = [
   {
-    name:    'OpenRouter-Gemini',    // Primary — best quality
-    url:     'https://openrouter.ai/api/v1/chat/completions',
-    model:   'google/gemini-2.0-flash-001',
-    headers: {
+    name:     'OpenRouter-Gemini',
+    url:      'https://openrouter.ai/api/v1/chat/completions',
+    model:    'google/gemini-2.0-flash-001',
+    headers:  {
       'Authorization': `Bearer ${OPENROUTER_KEY}`,
       'HTTP-Referer':  'https://fasaldost.app',
       'X-Title':       'FasalDost',
     },
+    isGoogle: false,
   },
   {
-    name:    'OpenRouter-Llama',     // Backup 1 — completely free
-    url:     'https://openrouter.ai/api/v1/chat/completions',
-    model:   'meta-llama/llama-3.2-11b-vision-instruct:free',
-    headers: {
+    name:     'OpenRouter-Llama',
+    url:      'https://openrouter.ai/api/v1/chat/completions',
+    model:    'meta-llama/llama-3.2-11b-vision-instruct:free',
+    headers:  {
       'Authorization': `Bearer ${OPENROUTER_KEY}`,
       'HTTP-Referer':  'https://fasaldost.app',
       'X-Title':       'FasalDost',
     },
+    isGoogle: false,
   },
   {
-    name:    'Google-AI-Studio',     // Backup 2 — independent provider
-    url:     `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_AI_KEY}`,
-    model:   'gemini-1.5-flash',
-    headers: {},                     // Google AI uses key in URL, not header
-    isGoogle: true,                  // Flag — Google uses different request format
+    name:     'Google-AI-Studio',
+    url:      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_AI_KEY}`,
+    model:    'gemini-1.5-flash',
+    headers:  {},
+    isGoogle: true,
   },
 ];
 
-// ── System prompt ──────────────────────────────────────────────────────────
-// This prompt is sent as the 'system' role in every API call.
-// It tells the AI exactly what to do and what format to return.
-// temperature: 0.1 keeps responses consistent and deterministic.
-const SYSTEM_PROMPT = `You are senior pythologist Dr. Fasal, a senior agronomist specializing in Pakistani crops.
+// ── System prompt ─────────────────────────────────────────────────────────────
+const SYSTEM_PROMPT = `You are Dr. Fasal, a senior agronomist specializing in Pakistani crops.
+
 Supported crops: wheat, cotton, rice, sugarcane, maize, mango, tomato, potato, onion, chili, mustard, sunflower, chickpea, lentil, banana, citrus, guava, okra.
 
-Rules:
-1. Analyze the image carefully.
-2. A single plant can have MORE THAN ONE disease — detect ALL of them.
-3. If the image is blurry, not a plant, or confidence is below 50%, set image_quality to "unclear".
-4. Respond ONLY with a valid JSON object. No markdown. No backticks. No text outside the JSON.
+STRICT RULES — follow exactly:
+1. Analyze the image with extreme care before responding.
+2. Detect ALL diseases present — a single plant can have more than one.
+3. If image is blurry, not a plant, or unclear — set image_quality to "unclear" and overall_confidence below 40.
+4. CRITICAL: If overall_confidence for a HEALTHY declaration is below 80 — set image_quality to "unclear" instead. Never guess healthy.
+5. CRITICAL: is_healthy=true and non-empty diseases array must NEVER appear together.
+6. CRITICAL: If you see ANY suspicious spot, lesion, discoloration, or abnormality — identify it. Do NOT declare healthy when in doubt.
+7. A wrong diagnosis destroys farmer trust permanently. When uncertain — request a clearer photo.
+8. Respond ONLY with valid JSON. No markdown. No backticks. No text outside JSON.
 
 Required JSON structure:
 {
@@ -113,84 +125,38 @@ Required JSON structure:
   "prevention_ur": "زنگ مزاحم اقسام استعمال کریں۔"
 }
 
-If healthy: is_healthy=true, diseases=[].
-If unclear image: image_quality="unclear", overall_confidence<40, diseases=[].`;
+If healthy: is_healthy=true, diseases=[], overall_confidence must be above 80.
+If unclear: image_quality="unclear", overall_confidence below 40, diseases=[].`;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HELPER — Parse and validate the raw text response from any provider
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Parse raw text from AI response into a validated result object.
- * Strips markdown fences, parses JSON, checks confidence threshold.
- * @param {string} rawText - Raw text content from API response
- * @returns {Object} Validated result object
- * @throws {Error} If parsing fails or confidence is too low
- */
-function parseResult(rawText) {
-  if (!rawText || !rawText.trim()) {
-    throw new Error('Empty response from AI');
-  }
-
-  // Strip markdown code fences that some models add accidentally
-  const clean = rawText
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i,     '')
-    .replace(/\s*```$/,      '')
-    .trim();
-
-  let result;
-  try {
-    result = JSON.parse(clean);
-  } catch {
-    throw new Error('AI returned invalid format. Please try again.');
-  }
-
-  // Reject unclear or low-confidence results
-  // Better to ask farmer to retake photo than show wrong diagnosis
-  if (
-    result.image_quality === 'unclear' ||
-    (typeof result.overall_confidence === 'number' && result.overall_confidence < 50)
-  ) {
-    throw new Error('LOW_CONFIDENCE');
-  }
-
-  // Always ensure diseases is an array (AI sometimes omits it for healthy crops)
-  if (!Array.isArray(result.diseases)) {
-    result.diseases = [];
-  }
-
-  return result;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPER — Call a single provider and return raw text response
+// SECTION 1 — RAW API CALLER
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Make one API call to a given provider and return the raw text content.
- * @param {Object} provider  - Provider config from PROVIDERS array
- * @param {string} imageBase64
- * @param {string} userText
- * @returns {Promise<string>} Raw text from the AI
- * @throws {Error} On network failure or bad HTTP status
+ * Make one API call to a given provider and return raw text.
+ *
+ * @param {Object} provider    - Provider config from PROVIDERS array
+ * @param {string} imageBase64 - Base64 encoded JPEG image
+ * @param {string} userText    - Instruction text
+ * @returns {Promise<string>}  - Raw text from AI
+ * @throws {Error}             - On network failure or bad HTTP status
  */
 async function callProvider(provider, imageBase64, userText) {
   let body;
 
   if (provider.isGoogle) {
-    // ── Google AI Studio uses a different request format ──────────────────
+    // Google AI Studio uses a different request format
     body = JSON.stringify({
       contents: [{
         parts: [
           { inline_data: { mime_type: 'image/jpeg', data: imageBase64 } },
-          { text: SYSTEM_PROMPT + '\n\n' + userText },
-        ]
+          { text: `${SYSTEM_PROMPT}\n\n${userText}` },
+        ],
       }],
       generationConfig: { temperature: 0.1, maxOutputTokens: 2000 },
     });
   } else {
-    // ── OpenRouter uses OpenAI-compatible format ───────────────────────────
+    // OpenRouter uses OpenAI-compatible format
     body = JSON.stringify({
       model:       provider.model,
       max_tokens:  2000,
@@ -216,7 +182,6 @@ async function callProvider(provider, imageBase64, userText) {
       body,
     });
   } catch {
-    // fetch() threw — network unavailable for this provider
     throw new Error('NETWORK_ERROR');
   }
 
@@ -224,7 +189,7 @@ async function callProvider(provider, imageBase64, userText) {
   try {
     data = await response.json();
   } catch {
-    throw new Error('Invalid response from server');
+    throw new Error('Invalid JSON response from server');
   }
 
   if (!response.ok) {
@@ -232,7 +197,7 @@ async function callProvider(provider, imageBase64, userText) {
     throw new Error(msg);
   }
 
-  // Extract text from response — format differs between providers
+  // Extract text — format differs by provider
   if (provider.isGoogle) {
     return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
   }
@@ -240,61 +205,272 @@ async function callProvider(provider, imageBase64, userText) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MAIN FUNCTION — Multi-provider fallback
+// SECTION 2 — JSON PARSER & VALIDATOR
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Send a crop image to the AI and get a disease detection result.
- * Automatically tries up to 3 providers if one fails.
- * The farmer never sees an error unless ALL providers fail.
+ * Parse raw AI text into a validated result object.
+ * Returns null if parsing fails or result is unusable.
  *
- * @param {string} imageBase64 - Base64 encoded JPEG image string (no data: prefix)
- * @param {string} cropName    - Optional crop name to improve accuracy
- * @returns {Promise<Object>}  - Structured result object
+ * @param {string} rawText - Raw text from AI
+ * @returns {Object|null}  - Validated result or null
+ */
+function parseResult(rawText) {
+  if (!rawText || !rawText.trim()) return null;
+
+  // Strip markdown fences some models add accidentally
+  const clean = rawText
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i,     '')
+    .replace(/\s*```$/,      '')
+    .trim();
+
+  let result;
+  try {
+    result = JSON.parse(clean);
+  } catch {
+    return null;
+  }
+
+  if (typeof result !== 'object' || result === null) return null;
+
+  // Normalize diseases array
+  if (!Array.isArray(result.diseases)) {
+    result.diseases = [];
+  }
+
+  // Remove diseases below minimum confidence threshold
+  result.diseases = result.diseases.filter(d =>
+    !d.confidence || d.confidence >= DISEASE_MIN_CONFIDENCE
+  );
+
+  // Guard: healthy + diseases cannot coexist — diseases win (safer)
+  if (result.is_healthy === true && result.diseases.length > 0) {
+    result.is_healthy = false;
+  }
+
+  // Guard: no diseases + not healthy — mark as healthy
+  if (result.diseases.length === 0 && result.is_healthy === false) {
+    result.is_healthy = true;
+  }
+
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 3 — MAJORITY VOTE ENGINE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Compare results from multiple providers and return the majority verdict.
+ *
+ * VOTING LOGIC:
+ *   - Get primary label from each result (disease name or "HEALTHY")
+ *   - Count votes per label
+ *   - Winner = most votes
+ *   - Tie-breaking: disease beats healthy (cautious for farmer safety)
+ *   - If still tied: higher average confidence wins
+ *
+ * @param {Array<Object>} results - Valid result objects from providers
+ * @returns {Object}              - The winning result
+ */
+function majorityVote(results) {
+  if (results.length === 0) return null;
+  if (results.length === 1) return results[0];
+
+  // Build vote tally
+  const votes = {};
+
+  results.forEach(result => {
+    const label = result.is_healthy
+      ? 'HEALTHY'
+      : (result.diseases[0]?.disease_name_en || 'UNKNOWN').toUpperCase().trim();
+
+    if (!votes[label]) {
+      votes[label] = { count: 0, result, totalConfidence: 0 };
+    }
+
+    votes[label].count++;
+    votes[label].totalConfidence += result.overall_confidence || 0;
+
+    // Keep highest-confidence result for this label
+    if ((result.overall_confidence || 0) > (votes[label].result.overall_confidence || 0)) {
+      votes[label].result = result;
+    }
+  });
+
+  // Find winning label
+  let winnerLabel      = null;
+  let winnerVotes      = 0;
+  let winnerConfidence = 0;
+
+  Object.entries(votes).forEach(([label, data]) => {
+    const avgConf = data.totalConfidence / data.count;
+    const isDisease = label !== 'HEALTHY';
+    const currentIsDisease = winnerLabel !== 'HEALTHY';
+
+    if (
+      data.count > winnerVotes ||
+      // Tie: disease beats healthy
+      (data.count === winnerVotes && isDisease && !currentIsDisease) ||
+      // Tie between diseases: higher confidence wins
+      (data.count === winnerVotes && isDisease && currentIsDisease && avgConf > winnerConfidence)
+    ) {
+      winnerLabel      = label;
+      winnerVotes      = data.count;
+      winnerConfidence = avgConf;
+    }
+  });
+
+  const winner = votes[winnerLabel].result;
+
+  // Boost confidence when majority agrees — more providers agreeing = more certain
+  if (winnerVotes >= 2) {
+    winner.overall_confidence = Math.min(
+      99,
+      (winner.overall_confidence || 0) + (winnerVotes - 1) * 5
+    );
+  }
+
+  console.log(`[FasalDost Majority] ${winnerLabel} won with ${winnerVotes}/${results.length} votes`);
+  return winner;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 4 — FINAL VALIDATOR
+// Last gate before returning to screen.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Final validation before returning result to ScanScreen.
+ *
+ * @param {Object} result - Parsed result
+ * @returns {Object}      - Validated result
+ * @throws {Error}        - 'LOW_CONFIDENCE' if not reliable enough
+ */
+function validateFinal(result) {
+  if (!result) throw new Error('NETWORK_ERROR');
+
+  if (result.image_quality === 'unclear') {
+    throw new Error('LOW_CONFIDENCE');
+  }
+
+  if (
+    typeof result.overall_confidence === 'number' &&
+    result.overall_confidence < CONFIDENCE_MIN_ACCEPT
+  ) {
+    throw new Error('LOW_CONFIDENCE');
+  }
+
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 5 — MAIN EXPORTED FUNCTION
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Detect crop disease from an image using hybrid AI detection.
+ *
+ * FLOW:
+ *   1. Validate inputs
+ *   2. Phase 1: Call primary provider (Gemini) alone — fast path
+ *   3. If confidence >= 80% → return immediately
+ *   4. If confidence < 80%  → Phase 2: call ALL providers in parallel
+ *   5. Apply majority vote to parallel results
+ *   6. Final validation and return
+ *
+ * @param {string} imageBase64 - Base64 JPEG string (no data: prefix)
+ * @param {string} cropName    - Optional crop name for accuracy
+ * @returns {Promise<Object>}  - Disease detection result
  *
  * @throws {Error} 'LOW_CONFIDENCE' — image unclear, ask farmer to retake
  * @throws {Error} 'NETWORK_ERROR'  — all providers failed
- * @throws {Error} Other message    — unrecoverable error
  */
 export async function detectDisease(imageBase64, cropName = '') {
-  // Validate input before making any API call
+
+  // Validate input
   if (!imageBase64 || typeof imageBase64 !== 'string') {
     throw new Error('No image provided');
   }
 
   const userText = cropName.trim()
-    ? `The crop is: ${cropName.trim()}. Detect ALL diseases. Be specific to Pakistani farming.`
-    : `Identify the crop first, then detect ALL diseases. Be specific to Pakistani farming.`;
+    ? `The crop is: ${cropName.trim()}. Detect ALL diseases with high precision. Be specific to Pakistani farming conditions.`
+    : `Identify the crop first, then detect ALL diseases with high precision. Be specific to Pakistani farming conditions.`;
 
-  let lastError = null;
+  // ─────────────────────────────────────────────────────────────────────────
+  // PHASE 1 — FAST PATH
+  // Try primary provider alone. If confident — return immediately.
+  // Handles 70-80% of scans cheaply and instantly.
+  // ─────────────────────────────────────────────────────────────────────────
 
-  // ── Try each provider in order ────────────────────────────────────────────
-  for (const provider of PROVIDERS) {
-    try {
-      console.log(`[FasalDost API] Trying provider: ${provider.name}`);
+  console.log('[FasalDost] Phase 1 → Fast path:', PROVIDERS[0].name);
 
-      const rawText = await callProvider(provider, imageBase64, userText);
-      const result  = parseResult(rawText);
+  let phase1Result = null;
 
-      // SUCCESS — log which provider worked and return result
-      console.log(`[FasalDost API] Success via: ${provider.name}`);
-      return result;
-
-    } catch (err) {
-      // LOW_CONFIDENCE is not a provider failure — it means image is bad.
-      // No point trying other providers with the same bad image.
-      if (err.message === 'LOW_CONFIDENCE') {
-        throw err;
-      }
-
-      // Provider failed — log and try the next one
-      console.warn(`[FasalDost API] Provider ${provider.name} failed: ${err.message}`);
-      lastError = err;
-      // Continue to next provider in loop
-    }
+  try {
+    const rawText = await callProvider(PROVIDERS[0], imageBase64, userText);
+    phase1Result  = parseResult(rawText);
+  } catch (err) {
+    console.warn('[FasalDost] Phase 1 failed:', err.message, '→ Phase 2');
   }
 
-  // ── All providers failed ──────────────────────────────────────────────────
-  console.error('[FasalDost API] All providers failed. Last error:', lastError?.message);
-  throw new Error('NETWORK_ERROR');
+  // High confidence on Phase 1 — return immediately
+  if (
+    phase1Result &&
+    phase1Result.image_quality !== 'unclear' &&
+    (phase1Result.overall_confidence || 0) >= CONFIDENCE_FAST_PATH
+  ) {
+    console.log(`[FasalDost] Phase 1 ✓ confidence: ${phase1Result.overall_confidence}%`);
+    return validateFinal(phase1Result);
+  }
+
+  console.log(`[FasalDost] Phase 1 low confidence (${phase1Result?.overall_confidence || 0}%) → Phase 2`);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PHASE 2 — ACCURACY PATH
+  // Call ALL providers simultaneously. Apply majority vote.
+  // Handles uncertain cases with maximum reliability.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  console.log('[FasalDost] Phase 2 → Parallel call to', PROVIDERS.length, 'providers');
+
+  // Promise.allSettled never throws — failed providers return null
+  const parallelResults = await Promise.allSettled(
+    PROVIDERS.map(provider =>
+      callProvider(provider, imageBase64, userText)
+        .then(rawText => {
+          const result = parseResult(rawText);
+          if (result) {
+            console.log(`[FasalDost] ${provider.name} → ${result.overall_confidence}% conf, healthy: ${result.is_healthy}`);
+          }
+          return result;
+        })
+        .catch(err => {
+          console.warn(`[FasalDost] ${provider.name} failed:`, err.message);
+          return null;
+        })
+    )
+  );
+
+  // Collect valid results (exclude nulls and unclear responses)
+  const validResults = parallelResults
+    .map(r => r.status === 'fulfilled' ? r.value : null)
+    .filter(r => r !== null && r.image_quality !== 'unclear');
+
+  console.log(`[FasalDost] Phase 2 → ${validResults.length}/${PROVIDERS.length} providers succeeded`);
+
+  // No valid results from any provider
+  if (validResults.length === 0) {
+    // Fall back to Phase 1 result as last resort
+    if (phase1Result) {
+      console.warn('[FasalDost] All parallel failed — using Phase 1 fallback');
+      return validateFinal(phase1Result);
+    }
+    throw new Error('NETWORK_ERROR');
+  }
+
+  // Apply majority vote and return winner
+  const winner = majorityVote(validResults);
+  return validateFinal(winner);
 }

@@ -40,7 +40,10 @@ import HomeScreen          from './src/screens/HomeScreen';
 import ScanScreen          from './src/screens/ScanScreen';
 import ResultScreen        from './src/screens/ResultScreen';
 import HistoryScreen       from './src/screens/HistoryScreen';
-import FarmerProfileScreen from './src/screens/FarmerProfileScreen';
+import FarmerProfileScreen  from './src/screens/FarmerProfileScreen';
+import MarketplaceScreen    from './src/screens/MarketplaceScreen';
+import CreateListingScreen  from './src/screens/CreateListingScreen';
+import ListingDetailScreen  from './src/screens/ListingDetailScreen';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 import { colors } from './src/utils/theme';
@@ -174,7 +177,10 @@ export default function App() {
               <Stack.Screen name="Scan"         component={ScanScreen}          />
               <Stack.Screen name="Result"       component={ResultScreen}        />
               <Stack.Screen name="History"      component={HistoryScreen}       />
-              <Stack.Screen name="FarmerProfile" component={FarmerProfileScreen} />
+              <Stack.Screen name="FarmerProfile"    component={FarmerProfileScreen} />
+              <Stack.Screen name="Marketplace"      component={MarketplaceScreen}    />
+              <Stack.Screen name="CreateListing"    component={CreateListingScreen}  />
+              <Stack.Screen name="ListingDetail"    component={ListingDetailScreen}  />
             </Stack.Navigator>
           </NavigationContainer>
         </SafeAreaProvider>

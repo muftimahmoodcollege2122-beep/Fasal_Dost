@@ -184,6 +184,14 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
 
           <View style={styles.topRight}>
+            {/* Marketplace icon */}
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={() => navigation.navigate('Marketplace', { lang })}
+            >
+              <Text style={styles.iconText}>🛒</Text>
+            </TouchableOpacity>
+
             {/* History icon */}
             <TouchableOpacity
               style={styles.iconBtn}
@@ -242,6 +250,24 @@ export default function HomeScreen({ navigation }) {
             <Text style={[styles.secondaryBtnText, { textAlign: textAlign(lang) }]}>
               {t('uploadPhoto', lang)}
             </Text>
+          </TouchableOpacity>
+
+          {/* Marketplace button */}
+          <TouchableOpacity
+            style={styles.marketplaceBtn}
+            onPress={() => navigation.navigate('Marketplace', { lang })}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.marketplaceBtnEmoji}>🛒</Text>
+            <View style={styles.marketplaceBtnText}>
+              <Text style={[styles.marketplaceBtnTitle, { textAlign: textAlign(lang) }]}>
+                {lang === 'ur' ? 'کسان بازار' : 'Kisan Market'}
+              </Text>
+              <Text style={[styles.marketplaceBtnSub, { textAlign: textAlign(lang) }]}>
+                {lang === 'ur' ? 'فصل بیچیں یا خریدیں' : 'Buy or sell produce directly'}
+              </Text>
+            </View>
+            <Text style={styles.marketplaceArrow}>›</Text>
           </TouchableOpacity>
         </Animated.View>
 
@@ -330,6 +356,23 @@ const styles = StyleSheet.create({
   },
   secondaryBtnEmoji: { fontSize: 22 },
   secondaryBtnText:  { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
+
+  // Marketplace button
+  marketplaceBtn: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    gap:             12,
+    padding:         16,
+    borderRadius:    radius.lg,
+    backgroundColor: 'rgba(244,185,66,0.06)',
+    borderWidth:     1,
+    borderColor:     'rgba(244,185,66,0.25)',
+  },
+  marketplaceBtnEmoji: { fontSize: 28 },
+  marketplaceBtnText:  { flex: 1 },
+  marketplaceBtnTitle: { fontSize: 16, fontWeight: '800', color: colors.gold },
+  marketplaceBtnSub:   { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  marketplaceArrow:    { fontSize: 22, color: colors.gold },
 
   // How It Works
   howSection: {

@@ -400,3 +400,118 @@ export const incrementDailyCount = async () => {
     // Non-critical — if this fails, farmer just gets one extra scan
   }
 };
+
+/**
+ * Delete a single scan from local history by its ID.
+ * Note: Only deletes locally — Firestore record is kept for data business.
+ *
+ * @param {string} id - The scan entry ID to delete
+ * @returns {Promise<boolean>} true if deleted successfully
+ */
+export const deleteHistoryItem = async (id) => {
+  try {
+    const existing = await getHistory();
+    const updated  = existing.filter(item => item.id !== id);
+    await AsyncStorage.setItem(HISTORY_LOCAL_KEY, JSON.stringify(updated));
+    return true;
+  } catch (e) {
+    console.warn('deleteHistoryItem error:', e.message);
+    return false;
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 7 — MARKETPLACE LISTINGS
+//
+// Farmers post produce for sale. Buyers browse and contact via WhatsApp.
+//
+// Firestore: /listings/{listingId}
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LISTINGS_LOCAL_KEY = 'fd_listings_v1';
+
+/**
+ * Create a new produce listing.
+ * Saves to Firestore so all users can see it.
+ *
+ * @param {Object} listing - Listing data
+ * @returns {Promise<string|null>} listing ID or null on failure
+ */
+export const createListing = async (listing) => {
+  try {
+    const profile  = await getFarmerProfile();
+    const farmerId = await getFarmerUniqueId();
+
+    const doc = {
+      farmerId,
+      farmerName:  profile?.name     || '',
+      farmerPhone: profile?.phone    || '',
+      province:    profile?.province || '',
+      district:    profile?.district || '',
+      tehsil:      profile?.tehsil   || '',
+      cropName:    listing.cropName  || '',
+      quantity:    listing.quantity  || '',
+      unit:        listing.unit      || 'Maund',
+      price:       listing.price     || '',
+      quality:     listing.quality   || 'medium',
+      description: listing.description || '',
+      status:      'active',
+      createdAt:   serverTimestamp(),
+    };
+
+    const ref = await addDoc(collection(db, 'listings'), doc);
+    return ref.id;
+  } catch (e) {
+    console.warn('createListing error:', e.message);
+    return null;
+  }
+};
+
+/**
+ * Get all active listings from Firestore.
+ * @returns {Promise<Array>}
+ */
+export const getListings = async () => {
+  try {
+    const { getDocs, query, where, limit, collection: col } = await import('firebase/firestore');
+    const q = query(col(db, 'listings'), where('status', '==', 'active'), limit(50));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.warn('getListings error:', e.message);
+    return [];
+  }
+};
+
+/**
+ * Get listings posted by current farmer.
+ * @returns {Promise<Array>}
+ */
+export const getMyListings = async () => {
+  try {
+    const farmerId = await getFarmerUniqueId();
+    const { getDocs, query, where, collection: col } = await import('firebase/firestore');
+    const q = query(col(db, 'listings'), where('farmerId', '==', farmerId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.warn('getMyListings error:', e.message);
+    return [];
+  }
+};
+
+/**
+ * Mark a listing as sold or delete it.
+ * @param {string} listingId
+ * @param {'sold'|'deleted'} newStatus
+ */
+export const updateListingStatus = async (listingId, newStatus) => {
+  try {
+    const { doc: firestoreDoc, updateDoc } = await import('firebase/firestore');
+    await updateDoc(firestoreDoc(db, 'listings', listingId), { status: newStatus });
+    return true;
+  } catch (e) {
+    console.warn('updateListingStatus error:', e.message);
+    return false;
+  }
+};

@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect }    from '@react-navigation/native';
 import { colors, spacing, radius } from '../utils/theme';
 import { t, textAlign }            from '../utils/i18n';
-import { getHistory, clearHistory, clearImage } from '../utils/store';
+import { getHistory, clearHistory, clearImage, deleteHistoryItem } from '../utils/store';
 
 export default function HistoryScreen({ navigation, route }) {
   const lang   = route?.params?.lang || 'ur';
@@ -62,12 +62,32 @@ export default function HistoryScreen({ navigation, route }) {
     // Clear global image store — history items should not show stale scan images
     clearImage();
 
-    // Navigate with saved result JSON — ResultScreen handles null imageUri
+    // Pass fromHistory: true so ResultScreen skips auto-save (prevents duplicates)
     navigation.navigate('Result', {
       lang,
-      result:   item.result   || {},
-      cropName: item.cropName || '',
+      result:      item.result   || {},
+      cropName:    item.cropName || '',
+      fromHistory: true,
     });
+  };
+
+  // ── Delete a single history item ──────────────────────────────────────────
+  const handleDeleteItem = (item) => {
+    Alert.alert(
+      '',
+      lang === 'ur' ? 'یہ اسکین حذف کریں؟' : 'Delete this scan?',
+      [
+        { text: lang === 'ur' ? 'منسوخ' : 'Cancel', style: 'cancel' },
+        {
+          text:  lang === 'ur' ? 'حذف' : 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const ok = await deleteHistoryItem(item.id);
+            if (ok) setItems(prev => prev.filter(i => i.id !== item.id));
+          },
+        },
+      ]
+    );
   };
 
   // ── Clear all history ─────────────────────────────────────────────────────
@@ -176,8 +196,17 @@ export default function HistoryScreen({ navigation, route }) {
           </Text>
         </View>
 
-        {/* Chevron arrow */}
-        <Text style={styles.arrow}>›</Text>
+        {/* Right side: delete + chevron */}
+        <View style={styles.cardRight}>
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={() => handleDeleteItem(item)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.deleteIcon}>🗑️</Text>
+          </TouchableOpacity>
+          <Text style={styles.arrow}>›</Text>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -274,6 +303,9 @@ const styles = StyleSheet.create({
   multiTag:         { fontSize: 11, color: colors.gold },
   cropTag:          { fontSize: 12, color: colors.textSecondary },
   date:             { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  cardRight:        { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  deleteBtn:        { padding: 8 },
+  deleteIcon:       { fontSize: 16 },
   arrow:            { fontSize: 22, color: colors.textMuted, paddingRight: 12 },
 
   // Empty state

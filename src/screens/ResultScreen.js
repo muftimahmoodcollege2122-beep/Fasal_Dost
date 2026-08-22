@@ -34,11 +34,14 @@ import { colors, spacing, radius, shadows } from '../utils/theme';
 import { t, textAlign }     from '../utils/i18n';
 import { getImage }         from '../utils/store';
 import { saveToHistory }    from '../utils/store';
-
+import * as Speech            from 'expo-speech'; // Urdu voice reader for illiterate farmers
+import { Audio } from 'expo-audio';
 export default function ResultScreen({ navigation, route }) {
-  const lang     = route?.params?.lang     || 'ur';
-  const result   = route?.params?.result   || {};
-  const cropName = route?.params?.cropName || '';
+  const lang        = route?.params?.lang        || 'ur';
+  const result      = route?.params?.result      || {};
+  const cropName    = route?.params?.cropName    || '';
+  // fromHistory: true when opened from HistoryScreen — must NOT save again
+  const fromHistory = route?.params?.fromHistory || false;
 
   const insets = useSafeAreaInsets();
 
@@ -50,6 +53,9 @@ export default function ResultScreen({ navigation, route }) {
   // activeIndex: which disease tab is currently shown (0 = first disease)
   const [activeIndex, setActiveIndex] = useState(0);
 
+  // isSpeaking: true while voice is reading the result aloud
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
   // ── Ref: prevent double-save ──────────────────────────────────────────────
   // React can re-render this screen multiple times. We only want to save once.
   const savedRef = useRef(false);
@@ -59,12 +65,21 @@ export default function ResultScreen({ navigation, route }) {
     if (savedRef.current) return; // Already saved in this render cycle
     savedRef.current = true;
 
-    // Only save scans that came directly from the Scan screen (not history replay)
+    // CRITICAL: Skip save if opened from HistoryScreen — this is a replay.
+    // Saving again would create a duplicate entry in history.
+    if (fromHistory) return;
+
+    // Only save scans that came directly from the Scan screen
     if (result && typeof result === 'object' && Object.keys(result).length > 0) {
       saveToHistory({ imageUri, cropName, result })
         .catch(err => console.warn('ResultScreen auto-save error:', err.message));
     }
   }, []); // Empty deps — runs once on mount only
+
+  // ── Stop speech if farmer navigates away ─────────────────────────────────
+  useEffect(() => {
+    return () => { Speech.stop(); };
+  }, []);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -125,6 +140,106 @@ export default function ResultScreen({ navigation, route }) {
     return lines.join('\n');
   };
 
+  // ── Voice reader — reads full result in Urdu for illiterate farmers ────────
+  // Farmer taps 🔊 → hears full diagnosis in Urdu
+  // Tap again while speaking → stops immediately
+ const handleSpeak = async () => {
+  // If already speaking — stop
+  if (isSpeaking) {
+    setIsSpeaking(false);
+    return;
+  }
+
+  const d = currentDisease();
+
+  // Build simple clean Urdu text — short sentences work best
+  let text = '';
+
+  if (result.is_healthy) {
+    text = 'آپ کی فصل بالکل صحت مند ہے۔ کوئی بیماری نہیں ملی۔';
+  } else if (d) {
+    const parts = [];
+
+    if (d.disease_name_ur) parts.push(`بیماری: ${d.disease_name_ur}`);
+
+    const sevMap = {
+      low:    'خطرہ کم ہے',
+      medium: 'خطرہ درمیانہ ہے',
+      high:   'خطرہ زیادہ ہے، فوری اقدام کریں',
+    };
+    if (d.severity) parts.push(sevMap[d.severity] || '');
+
+    if (d.treatment_ur?.length) {
+      parts.push('علاج کا طریقہ:');
+      d.treatment_ur.forEach((step, i) => parts.push(`${i + 1}: ${step}`));
+    }
+
+    if (d.urgency_ur) parts.push(d.urgency_ur);
+    if (result.prevention_ur) parts.push(`احتیاط: ${result.prevention_ur}`);
+
+    text = parts.join('۔ ');
+  }
+
+  if (!text) return;
+
+  try {
+    setIsSpeaking(true);
+
+    // Set audio mode for playback
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS:   false,
+      playsInSilentModeIOS: true,
+    });
+
+    // Google Translate TTS — real natural Urdu voice
+    // Splits into chunks of 100 chars max (Google limit)
+    const chunks = splitText(text, 100);
+
+    for (const chunk of chunks) {
+      if (!chunk.trim()) continue;
+
+      const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=ur&client=tw-ob&ttsspeed=0.8`;
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: true }
+      );
+
+      // Wait for chunk to finish before playing next
+      await new Promise(resolve => {
+        sound.setOnPlaybackStatusUpdate(status => {
+          if (status.didJustFinish) {
+            sound.unloadAsync();
+            resolve();
+          }
+        });
+      });
+    }
+  } catch (err) {
+    console.warn('Voice error:', err.message);
+  } finally {
+    setIsSpeaking(false);
+  }
+};
+
+// Split long text into chunks for Google TTS limit
+const splitText = (text, maxLen) => {
+  const sentences = text.split('۔');
+  const chunks = [];
+  let current = '';
+
+  sentences.forEach(sentence => {
+    if ((current + sentence).length > maxLen) {
+      if (current) chunks.push(current);
+      current = sentence;
+    } else {
+      current += (current ? '۔' : '') + sentence;
+    }
+  });
+
+  if (current) chunks.push(current);
+  return chunks;
+};
   // ── Share handler ─────────────────────────────────────────────────────────
   const handleShare = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -153,10 +268,20 @@ export default function ResultScreen({ navigation, route }) {
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>📋 {t('diagnosis', lang)}</Text>
-        {/* Share button */}
-        <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
-          <Text style={styles.shareBtnText}>📤</Text>
-        </TouchableOpacity>
+        {/* Speaker + Share buttons */}
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {/* 🔊 Voice reader — for farmers who cannot read */}
+          <TouchableOpacity
+            style={[styles.shareBtn, isSpeaking && styles.speakerActive]}
+            onPress={handleSpeak}
+          >
+            <Text style={styles.shareBtnText}>{isSpeaking ? '⏹️' : '🔊'}</Text>
+          </TouchableOpacity>
+          {/* 📤 Share result */}
+          <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+            <Text style={styles.shareBtnText}>📤</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -344,7 +469,8 @@ const styles = StyleSheet.create({
   backIcon:     { fontSize: 20, color: colors.textPrimary },
   headerTitle:  { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
   shareBtn:     { width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.surfaceMid, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
-  shareBtnText: { fontSize: 20 },
+  shareBtnText:  { fontSize: 20 },
+  speakerActive: { backgroundColor: 'rgba(244,185,66,0.2)', borderColor: colors.gold },
 
   scroll:     { padding: spacing.md, paddingBottom: 48 },
 

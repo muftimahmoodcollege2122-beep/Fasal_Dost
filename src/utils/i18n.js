@@ -177,3 +177,63 @@ export const PROVINCES = [
   'Gilgit-Baltistan',
   'AJK',
 ];
+
+// ── Marketplace strings ────────────────────────────────────────────────────────
+const marketplaceStrings = {
+  marketplace:        { ur: 'کسان بازار',                    en: 'Kisan Market'                    },
+  sellProduce:        { ur: 'فصل فروخت کریں',                en: 'Sell Produce'                    },
+  buyProduce:         { ur: 'فصل خریدیں',                    en: 'Buy Produce'                     },
+  createListing:      { ur: 'اشتہار دیں',                    en: 'Post Listing'                    },
+  myListings:         { ur: 'میرے اشتہار',                   en: 'My Listings'                     },
+  allListings:        { ur: 'تمام اشتہار',                   en: 'All Listings'                    },
+  cropName:           { ur: 'فصل کا نام',                    en: 'Crop Name'                       },
+  quantity:           { ur: 'مقدار',                         en: 'Quantity'                        },
+  pricePerMaund:      { ur: 'فی من قیمت (PKR)',               en: 'Price per Maund (PKR)'           },
+  totalPrice:         { ur: 'کل قیمت',                       en: 'Total Price'                     },
+  quality:            { ur: 'معیار',                         en: 'Quality'                         },
+  description:        { ur: 'تفصیل',                         en: 'Description'                     },
+  contactBuyer:       { ur: 'خریدار سے رابطہ کریں',          en: 'Contact Buyer'                   },
+  contactFarmer:      { ur: 'کسان سے رابطہ کریں',            en: 'Contact Farmer via WhatsApp'     },
+  listingPosted:      { ur: 'اشتہار شائع ہو گیا ✅',          en: 'Listing posted ✅'               },
+  noListings:         { ur: 'ابھی کوئی اشتہار نہیں',          en: 'No listings yet'                 },
+  noListingsDesc:     { ur: 'پہلے اشتہار دیں',               en: 'Be the first to post'            },
+  deleteListing:      { ur: 'اشتہار ہٹائیں',                 en: 'Remove Listing'                  },
+  markSold:           { ur: 'فروخت ہو گیا',                  en: 'Mark as Sold'                    },
+  available:          { ur: 'دستیاب',                        en: 'Available'                       },
+  sold:               { ur: 'فروخت',                         en: 'Sold'                            },
+  postedBy:           { ur: 'اشتہار دہندہ',                  en: 'Posted by'                       },
+  location:           { ur: 'مقام',                          en: 'Location'                        },
+  quantityPH:         { ur: 'مثلاً 10',                      en: 'e.g. 10'                         },
+  pricePH:            { ur: 'مثلاً 4000',                    en: 'e.g. 4000'                       },
+  descPH:             { ur: 'فصل کے بارے میں مزید لکھیں',    en: 'Describe your produce'           },
+  qualityGood:        { ur: 'اعلیٰ معیار',                   en: 'Premium Quality'                 },
+  qualityMedium:      { ur: 'درمیانہ معیار',                  en: 'Medium Quality'                  },
+  qualityFresh:       { ur: 'تازہ',                          en: 'Fresh'                           },
+  maund:              { ur: 'من',                            en: 'Maund'                           },
+  kg:                 { ur: 'کلو',                           en: 'KG'                              },
+  ton:                { ur: 'ٹن',                            en: 'Ton'                             },
+};
+
+// Extend the t function to support marketplace strings
+const _origStrings = { ...marketplaceStrings };
+Object.assign(Object.getPrototypeOf({}), {});
+
+export const tm = (key, lang = 'ur') => {
+  const val = marketplaceStrings[key];
+  if (!val) return key;
+  return val[lang] ?? val.en ?? key;
+};
+
+// Units for quantity
+export const UNITS = [
+  { en: 'Maund', ur: 'من'   },
+  { en: 'KG',    ur: 'کلو'  },
+  { en: 'Ton',   ur: 'ٹن'   },
+];
+
+// Quality options
+export const QUALITY_OPTIONS = [
+  { en: 'Premium Quality', ur: 'اعلیٰ معیار',  value: 'premium' },
+  { en: 'Medium Quality',  ur: 'درمیانہ معیار', value: 'medium'  },
+  { en: 'Fresh',           ur: 'تازہ',          value: 'fresh'   },
+];
