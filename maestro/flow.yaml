@@ -1,0 +1,9 @@
+appId: pk.fasaldost.app
+---
+- launchApp
+- assertVisible: "FasalDost"
+- tapOn: "Take Photo"
+- assertVisible: "Detect Disease"
+- back
+- tapOn: "Marketplace"
+- assertVisible: "Marketplace"
