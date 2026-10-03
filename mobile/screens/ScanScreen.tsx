@@ -18,7 +18,6 @@ export function ScanScreen({ lang, onPickImage, onCaptureImage, onBack, loading 
       </TouchableOpacity>
 
       <View style={styles.card}>
-        <div style={{}} />
         <View style={styles.iconBox}>
           <Camera size={36} color="#0f172a" />
         </View>

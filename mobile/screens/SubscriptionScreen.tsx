@@ -93,7 +93,6 @@ export function SubscriptionScreen({ lang, onBack }: { lang: 'ur' | 'en'; onBack
         <Text style={[styles.planPrice, selectedPlan === 'diamond' && styles.textWhite]}>PKR 599 / {isUrdu ? 'ماہ' : 'mo'}</Text>
       </TouchableOpacity>
 
-      <div style={{}} />
       <View style={styles.payBox}>
         <Text style={styles.payLabel}>{isUrdu ? 'ادائیگی کا طریقہ منتخب کریں' : 'Select Payment Gateway'}</Text>
         <View style={styles.gatewayGrid}>

@@ -32,7 +32,6 @@ export function HomeScreen({ lang, onNavigate }: { lang: 'ur' | 'en'; onNavigate
       {/* Subscription Banner */}
       <TouchableOpacity style={styles.subBanner} onPress={() => onNavigate('Subscription')}>
         <View style={styles.subBannerLeft}>
-          <div style={{}} />
           <View style={styles.crownIconBox}>
             <Crown size={18} color="#10b981" />
           </View>

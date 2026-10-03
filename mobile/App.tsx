@@ -1,14 +1,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // mobile/App.tsx
-// FasalDost React Native & Expo Root App Navigator (All 15 Screens)
+// FasalDost React Native & Expo Root App Navigator (Fully Identical to Web App)
+// Supports all 6 languages, full navigation history stack, audio TTS, and auth
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, SafeAreaView, StatusBar, Alert } from 'react-native';
+import { StyleSheet, SafeAreaView, StatusBar, Alert, View, Text, TouchableOpacity } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
 import * as Updates from 'expo-updates';
+
+import { Language } from './utils/i18n';
+import { mobileApi, API_BASE_URL } from './utils/api';
 
 import { SplashScreen } from './screens/SplashScreen';
 import { OnboardingScreen } from './screens/OnboardingScreen';
@@ -26,26 +30,21 @@ import { ListingDetailScreen } from './screens/ListingDetailScreen';
 import { SellerVerificationScreen } from './screens/SellerVerificationScreen';
 import { AdvisoryScreen } from './screens/AdvisoryScreen';
 
-const API_BASE_URL = 'https://ais-dev-hexsq6a75nx3v7mukdbtq4-171051146732.asia-southeast1.run.app';
+export interface NavigationState {
+  screen: string;
+  params: any;
+}
 
 export default function App() {
+  const [lang, setLang] = useState<Language>('ur');
   const [showSplash, setShowSplash] = useState(true);
-  const [onboarded, setOnboarded] = useState(false);
-  const [screen, setScreen] = useState<
-    | 'home'
-    | 'scan'
-    | 'result'
-    | 'subscription'
-    | 'marketplace'
-    | 'history'
-    | 'settings'
-    | 'profile'
-    | 'createlisting'
-    | 'listingdetail'
-    | 'sellerverification'
-    | 'advisory'
-  >('home');
-  const [lang, setLang] = useState<'ur' | 'en'>('ur');
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  const [historyStack, setHistoryStack] = useState<NavigationState[]>([
+    { screen: 'Home', params: {} },
+  ]);
+
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [scanResult, setScanResult] = useState<any>(null);
@@ -59,74 +58,108 @@ export default function App() {
         const update = await Updates.checkForUpdateAsync();
         if (update.isAvailable) {
           await Updates.fetchUpdateAsync();
-          Alert.alert('App Updated', 'New version downloaded. Restarting...', [{ text: 'OK', onPress: () => Updates.reloadAsync() }]);
+          Alert.alert('App Updated', 'New version downloaded. Restarting...', [
+            { text: 'OK', onPress: () => Updates.reloadAsync() },
+          ]);
         }
       } catch (e) {
-        console.warn('OTA check skipped:', e);
+        console.warn('[OTA] Check skipped:', e);
       }
     }
     checkForOtaUpdates();
   }, []);
 
-  const navigate = (newScreen: string, _params?: any) => {
-    if (newScreen === 'Settings') setScreen('settings');
-    else if (newScreen === 'Subscription') setScreen('subscription');
-    else if (newScreen === 'Marketplace') setScreen('marketplace');
-    else if (newScreen === 'History') setScreen('history');
-    else if (newScreen === 'FarmerProfile') setScreen('profile');
-    else if (newScreen === 'Scan') setScreen('scan');
-    else if (newScreen === 'CreateListing') setScreen('createlisting');
-    else if (newScreen === 'ListingDetail') setScreen('listingdetail');
-    else if (newScreen === 'SellerVerification') setScreen('sellerverification');
-    else if (newScreen === 'Advisory') setScreen('advisory');
-    else if (newScreen === 'Home') setScreen('home');
+  const currentNav = historyStack[historyStack.length - 1] || {
+    screen: 'Home',
+    params: {},
+  };
+
+  const navigate = (screen: string, params: any = {}) => {
+    setHistoryStack((prev) => [...prev, { screen, params }]);
+  };
+
+  const goBack = () => {
+    setHistoryStack((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.slice(0, prev.length - 1);
+    });
+  };
+
+  const handleLanguageChange = (newLang: Language) => {
+    setLang(newLang);
+  };
+
+  const handleAuthSuccess = () => {
+    setIsAuthenticated(true);
+    setHistoryStack([{ screen: 'Home', params: {} }]);
+  };
+
+  const handleSignOut = () => {
+    setIsAuthenticated(false);
+    setHistoryStack([{ screen: 'Home', params: {} }]);
+  };
+
+  const handleOnboardingComplete = () => {
+    setHasCompletedOnboarding(true);
+    setIsAuthenticated(true);
+    setHistoryStack([{ screen: 'Home', params: {} }]);
   };
 
   const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-      base64: true,
-    });
-    if (!result.canceled && result.assets[0]?.base64) {
-      setSelectedImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
-      analyzeImage(result.assets[0].base64);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+        base64: true,
+      });
+      if (!result.canceled && result.assets[0]?.base64) {
+        const dataUrl = `data:image/jpeg;base64,${result.assets[0].base64}`;
+        setSelectedImage(dataUrl);
+        analyzeImage(result.assets[0].base64, dataUrl);
+      }
+    } catch (e) {
+      Alert.alert('Image Selection', 'Could not open image library.');
     }
   };
 
   const captureImage = async () => {
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      quality: 0.8,
-      base64: true,
-    });
-    if (!result.canceled && result.assets[0]?.base64) {
-      setSelectedImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
-      analyzeImage(result.assets[0].base64);
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Camera Permission', 'Please enable camera permission in device settings.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        quality: 0.8,
+        base64: true,
+      });
+      if (!result.canceled && result.assets[0]?.base64) {
+        const dataUrl = `data:image/jpeg;base64,${result.assets[0].base64}`;
+        setSelectedImage(dataUrl);
+        analyzeImage(result.assets[0].base64, dataUrl);
+      }
+    } catch (e) {
+      Alert.alert('Camera Error', 'Could not launch camera.');
     }
   };
 
-  const analyzeImage = async (base64Data: string) => {
+  const analyzeImage = async (cleanBase64: string, dataUrl: string) => {
     setLoading(true);
-    setScreen('scan');
+    navigate('Scan');
     try {
-      const response = await fetch(`${API_BASE_URL}/api/diagnostics/scan`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-app-language': lang },
-        body: JSON.stringify({ imageBase64: base64Data, language: lang }),
-      });
-      const data = await response.json();
-      if (data.success && data.data) {
-        setScanResult(data.data);
-        setScreen('result');
+      const data = await mobileApi.diagnostics.scan(cleanBase64, '', lang);
+      if (data) {
+        setScanResult(data);
+        navigate('Result', { result: data, imageUri: dataUrl });
       } else {
-        Alert.alert('Scan Issue', data.error?.message || 'Please upload a clear crop leaf image.');
-        setScreen('home');
+        Alert.alert('Diagnosis Issue', 'Could not process crop leaf image. Please capture a clear photo.');
+        goBack();
       }
-    } catch {
-      Alert.alert('Network Error', 'Could not connect to FasalDost server.');
-      setScreen('home');
+    } catch (err: any) {
+      Alert.alert('Analysis Failed', err.message || 'AI vision models were unable to process this image.');
+      goBack();
     } finally {
       setLoading(false);
     }
@@ -135,8 +168,10 @@ export default function App() {
   const playAudioNarration = async () => {
     if (playingAudio) {
       if (soundObject) {
-        await soundObject.stopAsync();
-        await soundObject.unloadAsync();
+        try {
+          await soundObject.stopAsync();
+          await soundObject.unloadAsync();
+        } catch {}
         setSoundObject(null);
       }
       Speech.stop();
@@ -146,9 +181,35 @@ export default function App() {
 
     try {
       setPlayingAudio(true);
-      const textToSpeak = scanResult?.diseases?.[0]?.description_en || 'Crop disease analysis details.';
+      const textToSpeak =
+        scanResult?.diseases?.[0]?.description_en ||
+        scanResult?.rejection_reason_en ||
+        'Crop disease analysis details.';
+
+      // Try server-side Gemini 3.8 Flash Lite studio voice synthesis
+      try {
+        const tts = await mobileApi.diagnostics.synthesizeSpeech(textToSpeak, lang);
+        if (tts?.audioBase64) {
+          const sound = new Audio.Sound();
+          await sound.loadAsync({
+            uri: `data:${tts.mimeType || 'audio/wav'};base64,${tts.audioBase64}`,
+          });
+          setSoundObject(sound);
+          sound.setOnPlaybackStatusUpdate((status) => {
+            if (status.isLoaded && status.didJustFinish) {
+              setPlayingAudio(false);
+            }
+          });
+          await sound.playAsync();
+          return;
+        }
+      } catch (serverTtsErr) {
+        console.warn('[Mobile] Server TTS failed, falling back to local speech:', serverTtsErr);
+      }
+
+      // Local Speech fallback
       Speech.speak(textToSpeak, {
-        language: lang === 'ur' ? 'ur-PK' : 'en-US',
+        language: lang === 'ur' ? 'ur-PK' : lang === 'hi' ? 'hi-IN' : 'en-US',
         rate: 0.9,
         onDone: () => setPlayingAudio(false),
         onError: () => setPlayingAudio(false),
@@ -163,39 +224,120 @@ export default function App() {
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       {showSplash ? (
         <SplashScreen onFinish={() => setShowSplash(false)} />
-      ) : !onboarded ? (
-        <OnboardingScreen lang={lang} onComplete={() => setOnboarded(true)} />
-      ) : screen === 'home' ? (
-        <HomeScreen lang={lang} onNavigate={navigate} />
-      ) : screen === 'scan' ? (
-        <ScanScreen lang={lang} onPickImage={pickImage} onCaptureImage={captureImage} onBack={() => setScreen('home')} loading={loading} />
-      ) : screen === 'result' ? (
-        <ResultScreen lang={lang} result={scanResult} imageUri={selectedImage} onPlayAudio={playAudioNarration} playingAudio={playingAudio} onBack={() => setScreen('home')} />
-      ) : screen === 'subscription' ? (
-        <SubscriptionScreen lang={lang} onBack={() => setScreen('home')} />
-      ) : screen === 'marketplace' ? (
-        <MarketplaceScreen lang={lang} onBack={() => setScreen('home')} />
-      ) : screen === 'history' ? (
-        <HistoryScreen lang={lang} onBack={() => setScreen('home')} />
-      ) : screen === 'profile' ? (
-        <FarmerProfileScreen lang={lang} onBack={() => setScreen('home')} />
-      ) : screen === 'settings' ? (
-        <SettingsScreen lang={lang} onLanguageChange={setLang} onBack={() => setScreen('home')} />
-      ) : screen === 'createlisting' ? (
-        <CreateListingScreen lang={lang} onBack={() => setScreen('marketplace')} />
-      ) : screen === 'listingdetail' ? (
-        <ListingDetailScreen lang={lang} onBack={() => setScreen('marketplace')} />
-      ) : screen === 'sellerverification' ? (
-        <SellerVerificationScreen lang={lang} onBack={() => setScreen('profile')} />
-      ) : screen === 'advisory' ? (
-        <AdvisoryScreen lang={lang} onBack={() => setScreen('home')} />
+      ) : !hasCompletedOnboarding ? (
+        <OnboardingScreen
+          lang={lang}
+          onComplete={handleOnboardingComplete}
+        />
+      ) : !isAuthenticated ? (
+        <AuthScreen
+          onSuccess={handleAuthSuccess}
+          onSkip={handleAuthSuccess}
+        />
       ) : (
-        <HomeScreen lang={lang} onNavigate={navigate} />
+        <>
+          {currentNav.screen === 'Home' && (
+            <HomeScreen
+              lang={lang as any}
+              onNavigate={navigate}
+            />
+          )}
+
+          {currentNav.screen === 'Scan' && (
+            <ScanScreen
+              lang={lang as any}
+              onPickImage={pickImage}
+              onCaptureImage={captureImage}
+              onBack={goBack}
+              loading={loading}
+            />
+          )}
+
+          {currentNav.screen === 'Result' && (
+            <ResultScreen
+              lang={lang as any}
+              result={currentNav.params?.result || scanResult}
+              imageUri={currentNav.params?.imageUri || selectedImage}
+              onPlayAudio={playAudioNarration}
+              playingAudio={playingAudio}
+              onBack={() => navigate('Home')}
+            />
+          )}
+
+          {currentNav.screen === 'History' && (
+            <HistoryScreen
+              lang={lang as any}
+              onBack={goBack}
+            />
+          )}
+
+          {currentNav.screen === 'FarmerProfile' && (
+            <FarmerProfileScreen
+              lang={lang as any}
+              onBack={goBack}
+            />
+          )}
+
+          {currentNav.screen === 'Settings' && (
+            <SettingsScreen
+              lang={lang as any}
+              onLanguageChange={handleLanguageChange as any}
+              onBack={goBack}
+            />
+          )}
+
+          {currentNav.screen === 'Subscription' && (
+            <SubscriptionScreen
+              lang={lang as any}
+              onBack={goBack}
+            />
+          )}
+
+          {currentNav.screen === 'Marketplace' && (
+            <MarketplaceScreen
+              lang={lang as any}
+              onNavigate={navigate}
+              onBack={goBack}
+            />
+          )}
+
+          {currentNav.screen === 'CreateListing' && (
+            <CreateListingScreen
+              lang={lang as any}
+              onBack={goBack}
+            />
+          )}
+
+          {currentNav.screen === 'ListingDetail' && (
+            <ListingDetailScreen
+              lang={lang as any}
+              listing={currentNav.params?.listing}
+              onBack={goBack}
+            />
+          )}
+
+          {currentNav.screen === 'SellerVerification' && (
+            <SellerVerificationScreen
+              lang={lang as any}
+              onBack={goBack}
+            />
+          )}
+
+          {currentNav.screen === 'Advisory' && (
+            <AdvisoryScreen
+              lang={lang as any}
+              onBack={goBack}
+            />
+          )}
+        </>
       )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
 });
