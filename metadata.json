@@ -2,5 +2,6 @@
   "name": "Fasal Dost",
   "description": "AI-powered crop disease detection and agricultural marketplace for Pakistani farmers.",
   "permissions": [],
-  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

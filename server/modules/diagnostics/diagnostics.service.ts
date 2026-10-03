@@ -304,13 +304,23 @@ export class DiagnosticsService implements IDiagnosticsModule {
       process.env.VITE_GEMINI_API_KEY ||
       '';
 
-    const key = serverKey || (customApiKey && customApiKey.trim().length > 15 ? customApiKey.trim() : '');
+    const key = (customApiKey && customApiKey.trim().length > 15 && !customApiKey.includes('placeholder'))
+      ? customApiKey.trim()
+      : serverKey;
 
     if (!key || key.includes('placeholder') || key.length < 15) return null;
 
     try {
-      return new GoogleGenAI({ apiKey: key });
+      return new GoogleGenAI({
+        apiKey: key,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
     } catch (e) {
+      console.warn('[DiagnosticsService] Failed to initialize GoogleGenAI client:', e);
       return null;
     }
   }
@@ -400,10 +410,9 @@ export class DiagnosticsService implements IDiagnosticsModule {
     if (!ai) return null;
 
     const GEMINI_MODELS = [
+      'gemini-3.8-flash',
       'gemini-3.1-flash-lite',
       'gemini-flash-latest',
-      'gemini-3.8-flash',
-      'gemini-3.1-pro-preview',
     ];
 
     for (const modelName of GEMINI_MODELS) {
@@ -537,7 +546,7 @@ export class DiagnosticsService implements IDiagnosticsModule {
     if (match && match[1]) {
       mimeType = match[1];
     }
-    const cleanBase64 = dto.imageBase64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
+    const cleanBase64 = dto.imageBase64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '').replace(/\s+/g, '');
 
     // Immediate triage: detect blank or corrupted images
     if (cleanBase64.length < 300) {
