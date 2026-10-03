@@ -1,95 +1,207 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // mobile/screens/HomeScreen.tsx
-// React Native Home Screen matching web UI (Professional Slate & White Edition)
+// Main Landing Screen for FasalDost (Identical to Web Experience)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { Camera, Store, Clock, Crown, User, Settings, Sparkles, ChevronRight, ShieldCheck, CloudRain } from 'lucide-react-native';
+import {
+  Camera,
+  Image as ImageIcon,
+  Store,
+  Clock,
+  Settings,
+  Sprout,
+  Sparkles,
+  ShieldCheck,
+  ChevronRight,
+  Crown,
+  CloudRain,
+  User,
+} from 'lucide-react-native';
+import { Language, t } from '../utils/i18n';
+import { mobileApi } from '../utils/api';
 
-export function HomeScreen({ lang, onNavigate }: { lang: 'ur' | 'en'; onNavigate: (screen: string, params?: any) => void }) {
+export function HomeScreen({
+  lang,
+  onNavigate,
+  onPickImage,
+  onCaptureImage,
+}: {
+  lang: Language;
+  onNavigate: (screen: string, params?: any) => void;
+  onPickImage?: () => void;
+  onCaptureImage?: () => void;
+}) {
   const isUrdu = lang === 'ur';
+  const [farmerName, setFarmerName] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const profile = await mobileApi.farmers.getProfile('current');
+        if (profile?.fullName) {
+          setFarmerName(profile.fullName);
+        }
+      } catch {}
+    })();
+  }, []);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Top Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.avatarBox}>
-            <Text style={{ fontSize: 18 }}>🌱</Text>
+      {/* Top Bar: Clean Action Icons matching Web */}
+      <View style={styles.topBar}>
+        <View style={styles.brandRow}>
+          <View style={styles.fdBadge}>
+            <Text style={styles.fdBadgeText}>FD</Text>
           </View>
-          <View>
-            <Text style={styles.greeting}>{isUrdu ? 'سلام کسان بھائی! 👋' : 'Hello Farmer! 👋'}</Text>
-            <Text style={styles.subGreeting}>{isUrdu ? 'فضل دوست اے آئی زرعی پورٹل' : 'FasalDost Agritech Dashboard'}</Text>
-          </View>
+          <Text style={styles.brandLabel}>{t('agritechAi', lang)}</Text>
         </View>
 
-        <TouchableOpacity style={styles.settingsBtn} onPress={() => onNavigate('Settings')}>
-          <Settings size={20} color="#0f172a" />
+        <View style={styles.headerActions}>
+          {/* History Icon */}
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => onNavigate('History')}
+            accessibilityLabel="Scan History"
+          >
+            <Clock size={18} color="#334155" />
+          </TouchableOpacity>
+
+          {/* Marketplace Icon */}
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => onNavigate('Marketplace')}
+            accessibilityLabel="Marketplace"
+          >
+            <Store size={18} color="#334155" />
+          </TouchableOpacity>
+
+          {/* Settings Icon */}
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => onNavigate('Settings')}
+            accessibilityLabel="Settings"
+          >
+            <Settings size={18} color="#334155" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Hero Section */}
+      <View style={styles.heroSection}>
+        <View style={styles.sproutBox}>
+          <Sprout size={32} color="#0f172a" />
+        </View>
+        <Text style={styles.appTitle}>{t('appName', lang)}</Text>
+
+        {farmerName ? (
+          <Text style={styles.welcomeText}>
+            {t('welcomeBack', lang)}, {farmerName}
+          </Text>
+        ) : null}
+
+        <Text style={styles.subtitleText}>{t('subtitle', lang)}</Text>
+      </View>
+
+      {/* Primary Actions */}
+      <View style={styles.actionGroup}>
+        {/* Take Photo Button - Solid Dark CTA */}
+        <TouchableOpacity
+          style={styles.takePhotoBtn}
+          onPress={() => {
+            if (onCaptureImage) onCaptureImage();
+            else onNavigate('Scan');
+          }}
+        >
+          <Camera size={20} color="#ffffff" style={{ marginRight: 8 }} />
+          <Text style={styles.takePhotoText}>{t('takePhoto', lang)}</Text>
+        </TouchableOpacity>
+
+        {/* Upload from Gallery Button */}
+        <TouchableOpacity
+          style={styles.galleryBtn}
+          onPress={() => {
+            if (onPickImage) onPickImage();
+            else onNavigate('Scan');
+          }}
+        >
+          <ImageIcon size={18} color="#1e293b" style={{ marginRight: 8 }} />
+          <Text style={styles.galleryText}>{t('uploadPhoto', lang)}</Text>
+        </TouchableOpacity>
+
+        {/* Marketplace Promo Card */}
+        <TouchableOpacity
+          style={styles.marketplaceBanner}
+          onPress={() => onNavigate('Marketplace')}
+        >
+          <View style={styles.marketBannerLeft}>
+            <View style={styles.marketIconBox}>
+              <Store size={20} color="#0f172a" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.marketTitle}>{t('marketplace', lang)}</Text>
+              <Text style={styles.marketSub}>{t('marketplaceSubtitle', lang)}</Text>
+            </View>
+          </View>
+          <ChevronRight size={18} color="#94a3b8" />
         </TouchableOpacity>
       </View>
 
-      {/* Subscription Banner */}
-      <TouchableOpacity style={styles.subBanner} onPress={() => onNavigate('Subscription')}>
-        <View style={styles.subBannerLeft}>
-          <View style={styles.crownIconBox}>
-            <Crown size={18} color="#10b981" />
+      {/* How It Works Section */}
+      <View style={styles.howItWorksCard}>
+        <Text style={styles.howItWorksHeader}>{t('howItWorks', lang)}</Text>
+        <View style={styles.stepsRow}>
+          <View style={styles.stepCol}>
+            <View style={styles.stepCircle}>
+              <Camera size={16} color="#334155" />
+            </View>
+            <Text style={styles.stepTitle}>{t('step1Title', lang)}</Text>
+            <Text style={styles.stepDesc}>{t('step1Desc', lang)}</Text>
           </View>
-          <View>
-            <Text style={styles.subBannerTitle}>{isUrdu ? 'فضل دوست پریمیم پیکجز' : 'FasalDost Subscription Plans'}</Text>
-            <Text style={styles.subBannerSub}>{isUrdu ? '7 مفت اسکینز | گولڈ، ڈائمنڈ اور لامحدود' : 'Free 7 Scans | Gold, Diamond & Unlimited'}</Text>
+
+          <View style={styles.stepCol}>
+            <View style={styles.stepCircle}>
+              <Sparkles size={16} color="#334155" />
+            </View>
+            <Text style={styles.stepTitle}>{t('step2Title', lang)}</Text>
+            <Text style={styles.stepDesc}>{t('step2Desc', lang)}</Text>
+          </View>
+
+          <View style={styles.stepCol}>
+            <View style={styles.stepCircle}>
+              <ShieldCheck size={16} color="#334155" />
+            </View>
+            <Text style={styles.stepTitle}>{t('step3Title', lang)}</Text>
+            <Text style={styles.stepDesc}>{t('step3Desc', lang)}</Text>
           </View>
         </View>
-        <ChevronRight size={18} color="#94a3b8" />
-      </TouchableOpacity>
+      </View>
 
-      {/* Main Scan Hero Card */}
-      <TouchableOpacity style={styles.scanHeroCard} onPress={() => onNavigate('Scan')}>
-        <View style={styles.scanIconBox}>
-          <Camera size={32} color="#ffffff" />
-        </View>
-        <Text style={styles.scanTitle}>{isUrdu ? 'فصل کے پتے کی تصویر بنائیں' : 'Scan Crop Leaf & Diagnose'}</Text>
-        <Text style={styles.scanDesc}>
-          {isUrdu ? 'اے آئی کیمرہ سے بیماری فوراً شناخت کریں اور فوری علاج پائیں۔' : 'Instant AI pathology scan for plant diseases, severity & cures.'}
-        </Text>
-        <View style={styles.scanBtn}>
-          <Sparkles size={16} color="#0f172a" style={{ marginRight: 6 }} />
-          <Text style={styles.scanBtnText}>{isUrdu ? 'ابھی اسکین کریں' : 'Start Scan Now'}</Text>
-        </View>
-      </TouchableOpacity>
-
-      {/* Quick Action Grid */}
-      <View style={styles.grid}>
-        <TouchableOpacity style={styles.gridCard} onPress={() => onNavigate('Marketplace')}>
-          <View style={[styles.gridIconBox, { backgroundColor: '#ecfdf5' }]}>
-            <Store size={22} color="#059669" />
+      {/* Quick Services Row */}
+      <View style={styles.servicesGrid}>
+        <TouchableOpacity style={styles.serviceCard} onPress={() => onNavigate('Subscription')}>
+          <View style={[styles.serviceIconBox, { backgroundColor: '#fef3c7' }]}>
+            <Crown size={18} color="#b45309" />
           </View>
-          <Text style={styles.gridTitle}>{isUrdu ? 'کسان منڈی' : 'Produce Exchange'}</Text>
-          <Text style={styles.gridSub}>{isUrdu ? 'فصل خریدیں یا بیچیں' : 'Buy & Sell Crops'}</Text>
+          <Text style={styles.serviceTitle}>{isUrdu ? 'سبسکرپشن' : 'Subscription'}</Text>
+          <Text style={styles.serviceSub}>Free 7 Scans</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.gridCard} onPress={() => onNavigate('History')}>
-          <View style={[styles.gridIconBox, { backgroundColor: '#eff6ff' }]}>
-            <Clock size={22} color="#2563eb" />
+        <TouchableOpacity style={styles.serviceCard} onPress={() => onNavigate('Advisory')}>
+          <View style={[styles.serviceIconBox, { backgroundColor: '#ecfdf5' }]}>
+            <CloudRain size={18} color="#059669" />
           </View>
-          <Text style={styles.gridTitle}>{isUrdu ? 'اسکین ہسٹری' : 'Scan History'}</Text>
-          <Text style={styles.gridSub}>{isUrdu ? 'ماضی کی رپورٹس' : 'Past Diagnostics'}</Text>
+          <Text style={styles.serviceTitle}>{isUrdu ? 'زرعی مشورے' : 'Crop Advisory'}</Text>
+          <Text style={styles.serviceSub}>{isUrdu ? 'موسم و کھاد' : 'Weather & Soil'}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.gridCard} onPress={() => onNavigate('Subscription')}>
-          <View style={[styles.gridIconBox, { backgroundColor: '#fef3c7' }]}>
-            <Crown size={22} color="#d97706" />
+        <TouchableOpacity style={styles.serviceCard} onPress={() => onNavigate('FarmerProfile')}>
+          <View style={[styles.serviceIconBox, { backgroundColor: '#f1f5f9' }]}>
+            <User size={18} color="#0f172a" />
           </View>
-          <Text style={styles.gridTitle}>{isUrdu ? 'پریمیم پیکجز' : 'Subscription'}</Text>
-          <Text style={styles.gridSub}>{isUrdu ? 'گولڈ اور ڈائمنڈ پلان' : 'Gold & Diamond Plans'}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.gridCard} onPress={() => onNavigate('FarmerProfile')}>
-          <View style={[styles.gridIconBox, { backgroundColor: '#f1f5f9' }]}>
-            <User size={22} color="#0f172a" />
-          </View>
-          <Text style={styles.gridTitle}>{isUrdu ? 'کسان پروفائل' : 'Farmer Profile'}</Text>
-          <Text style={styles.gridSub}>{isUrdu ? 'ذاتی تفصیلات' : 'Identity & Land'}</Text>
+          <Text style={styles.serviceTitle}>{isUrdu ? 'پروفائل' : 'Profile'}</Text>
+          <Text style={styles.serviceSub}>{isUrdu ? 'تصدیق کارڈ' : 'Farmer ID'}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -97,28 +209,40 @@ export function HomeScreen({ lang, onNavigate }: { lang: 'ur' | 'en'; onNavigate
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+  container: { flex: 1, backgroundColor: '#ffffff' },
   contentContainer: { padding: 16, paddingBottom: 40 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarBox: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#cbd5e1' },
-  greeting: { fontSize: 18, fontWeight: '900', color: '#0f172a' },
-  subGreeting: { fontSize: 11, fontWeight: '600', color: '#64748b', marginTop: 1 },
-  settingsBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
-  subBanner: { backgroundColor: '#0f172a', borderRadius: 20, padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'between', marginBottom: 16, borderWidth: 1, borderColor: '#1e293b' },
-  subBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  crownIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  subBannerTitle: { fontSize: 13, fontWeight: '800', color: '#ffffff' },
-  subBannerSub: { fontSize: 10, fontWeight: '600', color: '#94a3b8', marginTop: 1 },
-  scanHeroCard: { backgroundColor: '#0f172a', borderRadius: 28, padding: 22, alignItems: 'center', marginBottom: 16, shadowColor: '#0f172a', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 4 },
-  scanIconBox: { width: 64, height: 64, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  scanTitle: { fontSize: 18, fontWeight: '900', color: '#ffffff', textAlign: 'center', marginBottom: 6 },
-  scanDesc: { fontSize: 12, color: '#94a3b8', textAlign: 'center', marginBottom: 18, paddingHorizontal: 10, lineHeight: 18 },
-  scanBtn: { backgroundColor: '#ffffff', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 14, flexDirection: 'row', alignItems: 'center' },
-  scanBtnText: { fontSize: 13, fontWeight: '900', color: '#0f172a' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  gridCard: { width: '48%', backgroundColor: '#ffffff', borderRadius: 20, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
-  gridIconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  gridTitle: { fontSize: 14, fontWeight: '800', color: '#0f172a', marginBottom: 2 },
-  gridSub: { fontSize: 11, fontWeight: '600', color: '#64748b' },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', marginBottom: 12 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  fdBadge: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' },
+  fdBadgeText: { color: '#ffffff', fontWeight: '800', fontSize: 12 },
+  brandLabel: { fontSize: 11, fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: 0.5 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  iconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
+  heroSection: { alignItems: 'center', marginVertical: 10, paddingHorizontal: 16 },
+  sproutBox: { width: 64, height: 64, borderRadius: 20, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  appTitle: { fontSize: 26, fontWeight: '900', color: '#0f172a', marginBottom: 4 },
+  welcomeText: { fontSize: 13, fontWeight: '700', color: '#334155', marginBottom: 2 },
+  subtitleText: { fontSize: 12, color: '#64748b', textAlign: 'center', lineHeight: 18, maxWidth: 280 },
+  actionGroup: { gap: 10, marginVertical: 14 },
+  takePhotoBtn: { backgroundColor: '#0f172a', borderRadius: 18, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  takePhotoText: { color: '#ffffff', fontSize: 14, fontWeight: '800' },
+  galleryBtn: { backgroundColor: '#ffffff', borderRadius: 18, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#cbd5e1' },
+  galleryText: { color: '#1e293b', fontSize: 14, fontWeight: '800' },
+  marketplaceBanner: { backgroundColor: '#ffffff', borderRadius: 18, padding: 14, borderWidth: 1, borderColor: '#e2e8f0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  marketBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  marketIconBox: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
+  marketTitle: { fontSize: 13, fontWeight: '800', color: '#0f172a' },
+  marketSub: { fontSize: 11, color: '#64748b', marginTop: 1 },
+  howItWorksCard: { backgroundColor: '#f8fafc', borderRadius: 18, padding: 14, borderWidth: 1, borderColor: '#e2e8f0', marginVertical: 12 },
+  howItWorksHeader: { fontSize: 11, fontWeight: '800', color: '#475569', textTransform: 'uppercase', textAlign: 'center', marginBottom: 12, letterSpacing: 0.5 },
+  stepsRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  stepCol: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
+  stepCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#cbd5e1', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  stepTitle: { fontSize: 11, fontWeight: '800', color: '#1e293b', textAlign: 'center', marginBottom: 2 },
+  stepDesc: { fontSize: 10, color: '#64748b', textAlign: 'center', lineHeight: 13 },
+  servicesGrid: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  serviceCard: { flex: 1, backgroundColor: '#ffffff', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center' },
+  serviceIconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  serviceTitle: { fontSize: 12, fontWeight: '800', color: '#0f172a' },
+  serviceSub: { fontSize: 10, color: '#64748b', marginTop: 1 },
 });

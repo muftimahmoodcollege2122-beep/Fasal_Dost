@@ -240,14 +240,24 @@ export default function App() {
             <HomeScreen
               lang={lang as any}
               onNavigate={navigate}
+              onPickImage={pickImage}
+              onCaptureImage={captureImage}
             />
           )}
 
           {currentNav.screen === 'Scan' && (
             <ScanScreen
               lang={lang as any}
+              imageUri={currentNav.params?.imageUri || selectedImage}
+              cropName={currentNav.params?.cropName}
               onPickImage={pickImage}
               onCaptureImage={captureImage}
+              onDetect={() => {
+                if (selectedImage) {
+                  const base64 = selectedImage.includes(',') ? selectedImage.split(',')[1] : selectedImage;
+                  analyzeImage(base64, selectedImage);
+                }
+              }}
               onBack={goBack}
               loading={loading}
             />
@@ -267,6 +277,7 @@ export default function App() {
           {currentNav.screen === 'History' && (
             <HistoryScreen
               lang={lang as any}
+              onNavigate={navigate}
               onBack={goBack}
             />
           )}
@@ -274,7 +285,9 @@ export default function App() {
           {currentNav.screen === 'FarmerProfile' && (
             <FarmerProfileScreen
               lang={lang as any}
+              onNavigate={navigate}
               onBack={goBack}
+              onSignOut={handleSignOut}
             />
           )}
 
@@ -282,7 +295,9 @@ export default function App() {
             <SettingsScreen
               lang={lang as any}
               onLanguageChange={handleLanguageChange as any}
+              onNavigate={navigate}
               onBack={goBack}
+              onSignOut={handleSignOut}
             />
           )}
 

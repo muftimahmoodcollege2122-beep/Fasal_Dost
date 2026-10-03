@@ -4,12 +4,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { ArrowLeft, Store, Plus, MapPin, RefreshCw, CheckCircle2 } from 'lucide-react-native';
+import { mobileApi } from '../utils/api';
 
-const API_BASE_URL = 'https://ais-dev-hexsq6a75nx3v7mukdbtq4-171051146732.asia-southeast1.run.app';
-
-export function MarketplaceScreen({ lang, onNavigate, onBack }: { lang: 'ur' | 'en'; onNavigate: (screen: string, params?: any) => void; onBack: () => void }) {
+export function MarketplaceScreen({
+  lang,
+  onNavigate,
+  onBack,
+}: {
+  lang: 'ur' | 'en' | string;
+  onNavigate: (screen: string, params?: any) => void;
+  onBack: () => void;
+}) {
   const isUrdu = lang === 'ur';
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -17,11 +24,8 @@ export function MarketplaceScreen({ lang, onNavigate, onBack }: { lang: 'ur' | '
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/marketplace/listings`);
-      const data = await res.json();
-      if (data.success && data.data) {
-        setListings(data.data);
-      }
+      const data = await mobileApi.marketplace.getListings();
+      setListings(data || []);
     } catch (err) {
       console.warn('Failed to fetch listings:', err);
     } finally {
@@ -83,30 +87,60 @@ export function MarketplaceScreen({ lang, onNavigate, onBack }: { lang: 'ur' | '
             <Text style={styles.countText}>{listings.length} {isUrdu ? 'فعال لسٹنگز' : 'Active Listings'}</Text>
             <TouchableOpacity onPress={loadData} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <RefreshCw size={12} color="#64748b" />
-              <Text style={styles.refreshText}>{isUrdu ? 'ریشریف' : 'Refresh'}</Text>
+              <Text style={styles.refreshText}>{isUrdu ? 'ریفریش' : 'Refresh'}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.grid}>
-            {listings.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.card}
-                onPress={() => onNavigate('ListingDetail', { listing: item })}
-              >
-                <View style={styles.imgPlaceholder}>
-                  <Text style={{ fontSize: 24 }}>🌾</Text>
-                </View>
-                <View style={styles.cardBody}>
-                  <Text style={styles.cropTitle} numberOfLines={1}>{item.title || item.cropType || 'Crop Produce'}</Text>
-                  <Text style={styles.price}>PKR {item.pricePerUnit || item.price || '3,800'}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                    <MapPin size={10} color="#64748b" />
-                    <Text style={styles.loc} numberOfLines={1}>{item.location || 'Punjab, Pakistan'}</Text>
+            {listings.map((item) => {
+              const coverImage = item.images?.[0] || item.imageBase64;
+              const isSold = item.status === 'sold';
+
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.card, isSold && styles.cardSold]}
+                  onPress={() => onNavigate('ListingDetail', { listing: item })}
+                >
+                  {coverImage ? (
+                    <Image source={{ uri: coverImage }} style={styles.cardImage} />
+                  ) : (
+                    <View style={styles.imgPlaceholder}>
+                      <Text style={{ fontSize: 24 }}>🌾</Text>
+                    </View>
+                  )}
+
+                  {isSold && (
+                    <View style={styles.soldBadge}>
+                      <Text style={styles.soldText}>SOLD</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.cardBody}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Text style={styles.cropTitle} numberOfLines={1}>
+                        {item.cropName || item.title || 'Crop Produce'}
+                      </Text>
+                      <CheckCircle2 size={12} color="#059669" />
+                    </View>
+                    {item.variety ? (
+                      <Text style={styles.varietyText} numberOfLines={1}>{item.variety}</Text>
+                    ) : null}
+
+                    <Text style={styles.price}>
+                      PKR {item.price}{item.unit ? ` / ${item.unit}` : ''}
+                    </Text>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                      <MapPin size={10} color="#64748b" />
+                      <Text style={styles.loc} numberOfLines={1}>
+                        {item.district || 'Punjab'}, {item.province || 'Pakistan'}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       )}
@@ -134,10 +168,15 @@ const styles = StyleSheet.create({
   countText: { fontSize: 11, fontWeight: '800', color: '#64748b', textTransform: 'uppercase' },
   refreshText: { fontSize: 11, fontWeight: '700', color: '#64748b' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10 },
-  card: { width: '48%', backgroundColor: '#ffffff', borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden', marginBottom: 10 },
-  imgPlaceholder: { width: '100%', height: 100, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
+  card: { width: '48%', backgroundColor: '#ffffff', borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden', marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
+  cardSold: { opacity: 0.65 },
+  cardImage: { width: '100%', height: 110, backgroundColor: '#f1f5f9' },
+  imgPlaceholder: { width: '100%', height: 110, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
+  soldBadge: { position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(15, 23, 42, 0.85)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  soldText: { color: '#ffffff', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
   cardBody: { padding: 10 },
-  cropTitle: { fontSize: 13, fontWeight: '800', color: '#0f172a', marginBottom: 2 },
-  price: { fontSize: 13, fontWeight: '900', color: '#059669' },
+  cropTitle: { fontSize: 13, fontWeight: '800', color: '#0f172a', flex: 1 },
+  varietyText: { fontSize: 10, color: '#94a3b8', marginVertical: 1 },
+  price: { fontSize: 13, fontWeight: '900', color: '#059669', marginTop: 2 },
   loc: { fontSize: 10, color: '#64748b' },
 });
