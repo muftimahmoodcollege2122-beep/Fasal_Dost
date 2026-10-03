@@ -1,0 +1,161 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// prisma/schema.prisma
+// Production PostgreSQL Prisma Schema for FasalDost Modular Monolith
+// ─────────────────────────────────────────────────────────────────────────────
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  farmer
+  buyer
+  agronomist
+  admin
+}
+
+enum VerificationStatus {
+  unverified
+  pending
+  verified
+  rejected
+}
+
+enum ListingStatus {
+  active
+  pending
+  sold
+  archived
+}
+
+model User {
+  id            String          @id @default(uuid())
+  uid           String          @unique
+  email         String?         @unique
+  phone         String?
+  displayName   String?
+  photoUrl      String?
+  role          Role            @default(farmer)
+  passwordHash  String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  farmerProfile FarmerProfile?
+  scans         DiagnosticScan[]
+  listings      MarketplaceListing[]
+
+  @@map("users")
+}
+
+model FarmerProfile {
+  id                        String              @id @default(uuid())
+  userId                    String              @unique
+  user                      User                @relation(fields: [userId], references: [uid], onDelete: Cascade)
+  fullName                  String
+  phoneNumber               String
+  email                     String?
+  profilePhotoUrl           String?
+  cnicNumber                String?
+  cnicFrontUrl              String?
+  cnicBackUrl               String?
+  province                  String              @default("Punjab")
+  division                  String?
+  district                  String?
+  tehsil                    String?
+  village                   String?
+  landSizeAcres             String?
+  preferredLanguage         String              @default("en")
+  primaryCrops              String[]            @default([])
+  verifiedStatus            Boolean             @default(false)
+  isSellerVerified          Boolean             @default(false)
+  sellerVerificationStatus  VerificationStatus  @default(unverified)
+  antiBotVerificationScore  String?
+  aiVerificationConfidence  String?
+  aiVerificationNotes       String?
+  verificationIssues        String[]            @default([])
+  verifiedSellerBadge       String?
+  rejectedReason            String?
+  reviewedBy                String?
+  verifiedAt                DateTime?
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+
+  @@map("farmer_profiles")
+}
+
+model DiagnosticScan {
+  id                String    @id @default(uuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [uid], onDelete: Cascade)
+  cropName          String
+  imageUrl          String
+  s3Key             String?
+  isHealthy         Boolean   @default(false)
+  confidenceScore   Decimal   @db.Decimal(5, 4)
+  primaryDisease    String?
+  detectedDiseases  Json      @default("[]")
+  treatmentPlan     Json      @default("{}")
+  preventionAdvice  Json      @default("[]")
+  symptomsObserved  Json      @default("[]")
+  processingTimeMs  Int?
+  scanDate          DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  @@index([userId, scanDate])
+  @@index([cropName])
+  @@map("diagnostic_scans")
+}
+
+model MarketplaceListing {
+  id              String         @id @default(uuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [uid], onDelete: Cascade)
+  sellerName      String
+  sellerPhone     String
+  sellerEmail     String?
+  cropName        String
+  variety         String?
+  quantity        Decimal        @db.Decimal(10, 2)
+  unit            String         @default("KG")
+  price           Decimal        @db.Decimal(12, 2)
+  qualityGrade    String?        @default("standard")
+  harvestDate     DateTime?
+  description     String?
+  province        String
+  district        String?
+  tehsil          String?
+  images          String[]       @default([])
+  videos          String[]       @default([])
+  status          ListingStatus  @default(active)
+  isVerifiedSeller Boolean       @default(false)
+  viewsCount      Int            @default(0)
+  inquiriesCount  Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([cropName, status])
+  @@index([province, district])
+  @@map("marketplace_listings")
+}
+
+model JobExecution {
+  id          String    @id @default(uuid())
+  queueName   String
+  jobId       String    @unique
+  name        String
+  data        Json
+  status      String    @default("pending")
+  attempts    Int       @default(0)
+  result      Json?
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@map("job_executions")
+}
