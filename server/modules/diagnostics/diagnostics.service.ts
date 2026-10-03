@@ -802,7 +802,7 @@ IMPORTANT: You MUST write the localized fields (crop_detected_localized, disease
       throw new AppError('AI Speech engine is not initialized', 500);
     }
 
-    const ttsModels = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    const ttsModels = ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts', 'gemini-3.8-flash'];
     const chosenVoice = voiceName || (language === 'ur' || language === 'hi' ? 'Kore' : 'Aoede');
 
     for (const model of ttsModels) {
