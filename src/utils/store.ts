@@ -69,7 +69,9 @@ export const getFarmerUniqueId = async (): Promise<string> => {
   }
 };
 
-// ── Farmer Profile (PostgreSQL Database Backed) ──────────────────────────────
+// ── Farmer Profile (PostgreSQL Database Backed with Local Cache) ─────────────
+const FARMER_PROFILE_CACHE_KEY = 'fd_farmer_profile_cache_v1';
+
 export interface FarmerProfile {
   name: string;
   phone: string;
@@ -95,6 +97,10 @@ export interface FarmerProfile {
 
 export const saveFarmerProfile = async (profile: FarmerProfile): Promise<boolean> => {
   try {
+    localStorage.setItem(FARMER_PROFILE_CACHE_KEY, JSON.stringify(profile));
+  } catch {}
+
+  try {
     const uid = await getFarmerUniqueId();
     await apiClient.farmers.updateProfile(uid, {
       fullName: profile.name,
@@ -115,17 +121,25 @@ export const saveFarmerProfile = async (profile: FarmerProfile): Promise<boolean
     });
     return true;
   } catch (e) {
-    console.error('[Store] saveFarmerProfile database error:', e);
-    return false;
+    console.warn('[Store] saveFarmerProfile remote sync warning:', e);
+    return true;
   }
 };
 
 export const getFarmerProfile = async (): Promise<FarmerProfile | null> => {
+  let cached: FarmerProfile | null = null;
+  try {
+    const stored = localStorage.getItem(FARMER_PROFILE_CACHE_KEY);
+    if (stored) {
+      cached = JSON.parse(stored);
+    }
+  } catch {}
+
   try {
     const uid = await getFarmerUniqueId();
     const res = await apiClient.farmers.getProfile(uid);
-    if (!res || !res.fullName) return null;
-    return {
+    if (!res || !res.fullName) return cached;
+    const profile: FarmerProfile = {
       name: res.fullName,
       phone: res.phoneNumber || '',
       email: res.email || '',
@@ -147,9 +161,12 @@ export const getFarmerProfile = async (): Promise<FarmerProfile | null> => {
       verifiedAt: res.verifiedAt ? new Date(res.verifiedAt).toISOString() : undefined,
       savedAt: res.updatedAt ? new Date(res.updatedAt).toISOString() : undefined,
     };
+    try {
+      localStorage.setItem(FARMER_PROFILE_CACHE_KEY, JSON.stringify(profile));
+    } catch {}
+    return profile;
   } catch (e) {
-    console.error('[Store] getFarmerProfile database error:', e);
-    return null;
+    return cached;
   }
 };
 
@@ -183,7 +200,7 @@ export const verifyFarmerSeller = async (data: {
     await apiClient.farmers.verifySeller(uid, data);
     return true;
   } catch (e) {
-    console.error('[Store] verifyFarmerSeller database error:', e);
+    console.warn('[Store] verifyFarmerSeller database warning:', e);
     return false;
   }
 };
@@ -312,7 +329,7 @@ export const getHistory = async (): Promise<HistoryItem[]> => {
       },
     }));
   } catch (e) {
-    console.error('[Store] getHistory database error:', e);
+    console.warn('[Store] getHistory database warning:', e);
     return [];
   }
 };
@@ -321,7 +338,7 @@ export const clearHistory = async (): Promise<boolean> => {
   try {
     return await apiClient.diagnostics.clearHistory();
   } catch (e) {
-    console.error('[Store] clearHistory database error:', e);
+    console.warn('[Store] clearHistory database warning:', e);
     return false;
   }
 };
@@ -330,7 +347,7 @@ export const deleteHistoryItem = async (id: string): Promise<boolean> => {
   try {
     return await apiClient.diagnostics.deleteScan(id);
   } catch (e) {
-    console.error('[Store] deleteHistoryItem database error:', e);
+    console.warn('[Store] deleteHistoryItem database warning:', e);
     return false;
   }
 };
@@ -482,7 +499,7 @@ export const createListing = async (
 
     return result.id;
   } catch (e) {
-    console.error('[Store] createListing database error:', e);
+    console.warn('[Store] createListing database warning:', e);
     return null;
   }
 };
@@ -515,7 +532,7 @@ export const getListings = async (_includeAllStatus = false): Promise<ProduceLis
       createdAt: l.createdAt,
     }));
   } catch (e) {
-    console.error('[Store] getListings database error:', e);
+    console.warn('[Store] getListings database warning:', e);
     return [];
   }
 };
@@ -549,7 +566,7 @@ export const getMyListings = async (): Promise<ProduceListing[]> => {
       createdAt: l.createdAt,
     }));
   } catch (e) {
-    console.error('[Store] getMyListings database error:', e);
+    console.warn('[Store] getMyListings database warning:', e);
     return [];
   }
 };
@@ -567,7 +584,7 @@ export const markListingSold = async (id: string): Promise<boolean> => {
     });
     return res.ok;
   } catch (e) {
-    console.error('[Store] markListingSold database error:', e);
+    console.warn('[Store] markListingSold database warning:', e);
     return false;
   }
 };
@@ -576,7 +593,7 @@ export const deleteListing = async (id: string): Promise<boolean> => {
   try {
     return await apiClient.marketplace.deleteListing(id);
   } catch (e) {
-    console.error('[Store] deleteListing database error:', e);
+    console.warn('[Store] deleteListing database warning:', e);
     return false;
   }
 };
