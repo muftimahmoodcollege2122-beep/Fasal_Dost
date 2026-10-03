@@ -304,15 +304,13 @@ export class DiagnosticsService implements IDiagnosticsModule {
       process.env.VITE_GEMINI_API_KEY ||
       '';
 
-    // Prioritize the trusted environment API key; only fallback to custom key if server key is absent
-    const key = serverKey || (customApiKey && customApiKey.trim().length > 10 ? customApiKey.trim() : '');
+    const key = serverKey || (customApiKey && customApiKey.trim().length > 15 ? customApiKey.trim() : '');
 
-    if (!key) return null;
+    if (!key || key.includes('placeholder') || key.length < 15) return null;
 
     try {
       return new GoogleGenAI({ apiKey: key });
     } catch (e) {
-      console.warn('[DiagnosticsService] Failed to initialize GoogleGenAI client:', e);
       return null;
     }
   }
