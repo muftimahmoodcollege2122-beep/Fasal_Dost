@@ -1,0 +1,56 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User farmer profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "province": { "type": "string" },
+        "district": { "type": "string" },
+        "tehsil": { "type": "string" },
+        "landSize": { "type": "string" },
+        "crops": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid"]
+    },
+    "ProduceListing": {
+      "title": "ProduceListing",
+      "description": "Produce item posted on Kisan Market",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "farmerId": { "type": "string" },
+        "farmerName": { "type": "string" },
+        "farmerPhone": { "type": "string" },
+        "province": { "type": "string" },
+        "district": { "type": "string" },
+        "tehsil": { "type": "string" },
+        "cropName": { "type": "string" },
+        "quantity": { "type": "string" },
+        "unit": { "type": "string" },
+        "price": { "type": "string" },
+        "quality": { "type": "string" },
+        "description": { "type": "string" },
+        "imageBase64": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["cropName", "quantity", "price"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile collection"
+    },
+    "/listings/{listingId}": {
+      "schema": "ProduceListing",
+      "description": "Marketplace produce listings"
+    }
+  }
+}
