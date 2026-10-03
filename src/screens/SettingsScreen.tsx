@@ -636,55 +636,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               })}
             </div>
           </div>
-
-          {/* OpenRouter AI Engine Configuration Card */}
-          <div className="p-4 rounded-2xl bg-white border border-neutral-200 space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                <Cpu className="w-4 h-4 text-emerald-700" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-neutral-900">
-                  AI Diagnostics Engine & OpenRouter API Keys
-                </h4>
-                <p className="text-[10px] text-neutral-500">
-                  Run world-class models like Gemini 2.5 Pro, Claude 3.5 Sonnet, and GPT-4o
-                </p>
-              </div>
-            </div>
-
-            <div className="pt-1">
-              <label className="block text-[11px] font-bold text-neutral-700 mb-1">
-                OpenRouter API Key
-              </label>
-              <input
-                type="password"
-                defaultValue={getOpenRouterApiKey()}
-                onChange={(e) => setOpenRouterApiKey(e.target.value)}
-                placeholder="sk-or-v1-..."
-                className="w-full p-3 rounded-xl border border-neutral-300 bg-neutral-50 text-xs font-mono text-neutral-900 placeholder:text-neutral-400 focus:bg-white focus:outline-none focus:border-neutral-900 transition"
-              />
-              <p className="text-[10px] text-neutral-400 mt-1">
-                Saved automatically to your device. Leaves default to Gemini 3.8 Flash if blank.
-              </p>
-            </div>
-
-            <div className="pt-1">
-              <label className="block text-[11px] font-bold text-neutral-700 mb-1">
-                Preferred Vision Model
-              </label>
-              <select
-                defaultValue={getOpenRouterModel()}
-                onChange={(e) => setOpenRouterModel(e.target.value)}
-                className="w-full p-3 rounded-xl border border-neutral-300 bg-neutral-50 text-xs font-bold text-neutral-900 focus:bg-white focus:outline-none focus:border-neutral-900 transition"
-              >
-                <option value="google/gemini-2.5-pro">Google Gemini 2.5 Pro (Deep Agronomy)</option>
-                <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet (Vision Pathology)</option>
-                <option value="openai/gpt-4o">OpenAI GPT-4o (Multimodal Vision)</option>
-                <option value="google/gemini-2.5-flash">Google Gemini 2.5 Flash (Ultra Fast)</option>
-              </select>
-            </div>
-          </div>
         </div>
       )}
 
