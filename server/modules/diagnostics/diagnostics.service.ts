@@ -594,45 +594,11 @@ IMPORTANT: You MUST write the localized fields (crop_detected_localized, disease
     }
 
     if (!result) {
-      // Enterprise Robust Agronomy Deterministic Fallback (Ensures 100% uptime when API key is invalid/missing)
-      const targetCrop = cropHint || 'Wheat';
-      const isUrdu = userLang === 'ur';
-      result = {
-        scanCode: `SCAN-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-        is_valid_plant: true,
-        is_image_clear: true,
-        rejection_code: 'NONE',
-        image_quality: 'good',
-        crop_detected_en: targetCrop,
-        crop_detected_ur: targetCrop === 'Wheat' ? 'گندم' : targetCrop === 'Cotton' ? 'کپاس' : targetCrop === 'Rice' ? 'دھان (چاول)' : 'فصل',
-        crop_detected_localized: targetCrop,
-        overall_confidence: 92,
-        is_healthy: false,
-        diseases: [
-          {
-            disease_name_en: 'Foliar Fungal Blight & Chlorotic Spotting',
-            disease_name_ur: 'پتوں کی پھنگدھ اور زردی مائل دھبے',
-            disease_name_localized: 'Foliar Fungal Blight & Chlorotic Spotting',
-            severity: 'medium',
-            confidence: 92,
-            description_en: 'Initial stage fungal pathogen infection causing localized chlorotic spots and leaf tip necrosis due to high relative humidity and morning dew.',
-            description_ur: 'نمی کی زیادتی کی وجہ سے پتوں پر فنگس کا حملہ جس سے زرد دھبے اور مرجھاہٹ پیدا ہوتی ہے۔',
-            symptoms_en: ['Yellow chlorotic halos on leaf blade', 'Necrotic brown lesions along leaf margins', 'Slight premature leaf drying'],
-            symptoms_ur: ['پتے کی سطح پر زرد حلقے', 'کناروں پر بھورے دھبے', 'پتوں کا قبل از وقت سوکھنا'],
-            treatment_en: ['Apply Propiconazole 250 EC @ 200ml per acre foliar spray', 'Ensure optimal field drainage and avoid over-irrigation'],
-            treatment_ur: ['پروپیکونازول 250 ای سی 200 ملی لیٹر فی ایکڑ سپرے کریں', 'زمین میں نکاسی آب بہتر بنائیں'],
-            urgency_en: 'Treat within 48-72 hours to prevent fungal spread',
-            urgency_ur: 'فنگس کے پھیلاؤ کو روکنے کے لیے 48 سے 72 گھنٹوں میں علاج کریں۔'
-          }
-        ],
-        prevention_en: 'Practice crop rotation, use certified disease-resistant seeds, and apply balanced potassium fertilization.',
-        prevention_ur: 'فصلوں کا ہیر پھیر کریں، تصدیق شدہ اور بیماری سے محفوظ بیج استعمال کریں۔',
-        prevention_localized: 'Maintain optimal soil drainage and balanced fertilization.',
-        language: userLang,
-        createdAt: new Date().toISOString(),
-        ai_provider: 'gemini',
-        ai_model: 'gemini-fallback',
-      };
+      throw new AppError(
+        getMsg(dto.language, 'aiFailed'),
+        503,
+        'AI_ANALYSIS_FAILED'
+      );
     }
 
     // Generate scan code
