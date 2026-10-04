@@ -1,205 +1,420 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// mobile/screens/ListingDetailScreen.tsx
-// Full produce detail screen with gallery, metadata, and WhatsApp/Call (Identical to Web)
+// src/screens/ListingDetailScreen.tsx
+// Full produce detail screen with 1-8 images & 3 videos viewer, metadata, & farmer contact
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Linking, Alert, Share } from 'react-native';
-import { ArrowLeft, Phone, MessageCircle, MapPin, Calendar, ShieldCheck, Share2 } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { openUrl, copyText } from '../utils/native';
+import { Box, Btn, Img, T, Vid } from '../ui/web';
+import {
+  ArrowLeft,
+  Share2,
+  Phone,
+  MessageCircle,
+  MapPin,
+  Calendar,
+  Store,
+  Star,
+  User,
+  ShieldCheck,
+  Video,
+  Camera,
+  Play,
+  Layers,
+  Banknote,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink,
+} from '../ui/icons';
+import { Language } from '../utils/i18n';
+import { ProduceListing } from '../utils/store';
 
-export function ListingDetailScreen({
-  lang,
-  listing,
-  onBack,
-}: {
-  lang: 'ur' | 'en' | string;
-  listing?: any;
+interface ListingDetailScreenProps {
+  lang: Language;
+  listing?: ProduceListing;
+  isOwner?: boolean;
+  onNavigate: (screen: string, params?: any) => void;
   onBack: () => void;
-}) {
-  const isUrdu = lang === 'ur';
+}
 
+export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
+  lang: _lang,
+  listing,
+  isOwner: _isOwner = false,
+  onNavigate: _onNavigate,
+  onBack,
+}) => {
   if (!listing) {
     return (
-      <View style={styles.notFoundContainer}>
-        <Text style={styles.notFoundText}>{isUrdu ? 'لسٹنگ نہیں مل سکی' : 'Produce Listing Not Found'}</Text>
-        <TouchableOpacity style={styles.backBtnPill} onPress={onBack}>
-          <Text style={styles.backBtnPillText}>{isUrdu ? 'واپس جائیں' : 'Go Back'}</Text>
-        </TouchableOpacity>
-      </View>
+      <Box className="flex flex-col items-center justify-center min-h-full py-20 text-center">
+        <AlertCircle className="w-10 h-10 text-slate-400 mb-2" />
+        <T className="text-sm font-bold text-slate-700">Listing not found</T>
+        <Btn
+          onClick={onBack}
+          className="mt-4 px-6 py-2 rounded-full bg-slate-900 text-white font-bold text-xs cursor-pointer"
+        >
+          Go Back
+        </Btn>
+      </Box>
     );
   }
 
-  const coverImage = listing.images?.[0] || listing.imageBase64;
-  const farmerPhone = listing.farmerPhone || '03001234567';
+  // Aggregate media items (images and videos)
+  const images = Array.isArray(listing.images) && listing.images.length > 0
+    ? listing.images
+    : listing.imageBase64
+    ? [listing.imageBase64]
+    : [];
 
-  const handleCall = () => {
-    Linking.openURL(`tel:${farmerPhone}`).catch(() => {
-      Alert.alert('Phone Call', `Call farmer at: ${farmerPhone}`);
-    });
+  const videos = Array.isArray(listing.videos) ? listing.videos : [];
+
+  type MediaItem = { type: 'image' | 'video'; url: string; index: number };
+  const allMedia: MediaItem[] = [
+    ...images.map((url, index) => ({ type: 'image' as const, url, index })),
+    ...videos.map((url, index) => ({ type: 'video' as const, url, index })),
+  ];
+
+  const [activeMediaIndex, setActiveMediaIndex] = useState<number>(0);
+  const activeMedia = allMedia[activeMediaIndex] || allMedia[0];
+
+  const [copiedToast, setCopiedToast] = useState(false);
+
+  const calculateTotal = () => {
+    const q = parseFloat(listing.quantity);
+    const p = parseFloat(listing.price);
+    if (!isNaN(q) && !isNaN(p) && q > 0 && p > 0) {
+      return (q * p).toLocaleString('en-PK');
+    }
+    return null;
   };
 
   const handleWhatsApp = () => {
-    let cleanPhone = farmerPhone.replace(/\D/g, '');
-    if (cleanPhone.startsWith('0')) {
-      cleanPhone = '92' + cleanPhone.substring(1);
+    if (!listing.farmerPhone) return;
+
+    let phone = listing.farmerPhone.replace(/\D/g, '');
+    if (phone.startsWith('0')) {
+      phone = '92' + phone.substring(1);
     }
-    const message = encodeURIComponent(
-      `Assalam-o-Alaikum! I saw your produce listing for ${listing.cropName || 'crop'} on FasalDost Marketplace. Is it still available?`
-    );
-    Linking.openURL(`https://wa.me/${cleanPhone}?text=${message}`).catch(() => {
-      Alert.alert('WhatsApp', `Connect on WhatsApp at: ${cleanPhone}`);
-    });
+
+    const message = `Assalam-o-Alaikum! I saw your produce listing for ${listing.cropName} on FasalDost Marketplace. Are ${listing.quantity} ${listing.unit} still available? I would like to discuss purchasing at PKR ${listing.price} per ${listing.unit}.`;
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    openUrl(url);
+  };
+
+  const handleCall = () => {
+    if (!listing.farmerPhone) return;
+    openUrl(`tel:${listing.farmerPhone}`);
   };
 
   const handleShare = async () => {
-    try {
-      await Share.share({
-        title: `${listing.cropName} - FasalDost Marketplace`,
-        message: `FasalDost Produce Listing: ${listing.cropName} (${listing.variety || ''})\nPrice: PKR ${listing.price}/${listing.unit || 'Kg'}\nLocation: ${listing.district || 'Punjab'}, Pakistan\nContact Farmer: ${farmerPhone}`,
-      });
-    } catch {}
+    const summary = `${listing.cropName} — ${listing.quantity} ${listing.unit} @ PKR ${listing.price}/${listing.unit}
+${listing.district || ''}${listing.province ? ', ' + listing.province : ''}
+Contact: ${listing.farmerName} ${listing.farmerPhone || ''}
+— FasalDost Marketplace`;
+    if (await copyText(summary)) {
+      setCopiedToast(true);
+      setTimeout(() => setCopiedToast(false), 2500);
+    }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-          <ArrowLeft size={18} color="#0f172a" />
-          <Text style={styles.backText}>{isUrdu ? 'منڈی' : 'Market'}</Text>
-        </TouchableOpacity>
+    <Box className="flex flex-col min-h-full pb-14">
+      {/* Top Header */}
+      <Box className="flex items-center justify-between py-2 mb-3 border-b border-slate-100 pb-3">
+        <Btn
+          onClick={onBack}
+          title="Back"
+          className="w-10 h-10 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 transition active:scale-95 shadow-2xs cursor-pointer"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Btn>
 
-        <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
-          <Share2 size={16} color="#0f172a" />
-        </TouchableOpacity>
-      </View>
+        <Box className="text-center">
+          <T className="text-base font-extrabold text-slate-900 truncate max-w-[200px]">
+            {listing.cropName}
+          </T>
+          <T className="text-[10px] text-slate-400 font-medium">
+            Marketplace Listing Detail
+          </T>
+        </Box>
 
-      {/* Main Image or Placeholder */}
-      {coverImage ? (
-        <Image source={{ uri: coverImage }} style={styles.coverImage} />
-      ) : (
-        <View style={styles.imagePlaceholder}>
-          <Text style={{ fontSize: 36 }}>🌾</Text>
-        </View>
+        <Btn
+          onClick={handleShare}
+          title="Share Listing"
+          className="w-10 h-10 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 transition active:scale-95 shadow-2xs cursor-pointer"
+        >
+          <Share2 className="w-4 h-4" />
+        </Btn>
+      </Box>
+
+      {copiedToast && (
+        <Box className="mb-3 p-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold text-center shadow-sm flex items-center justify-center gap-1.5 animate-in fade-in duration-200">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <T>Listing link copied to clipboard!</T>
+        </Box>
       )}
 
-      {/* Detail Card */}
-      <View style={styles.card}>
-        <View style={styles.badgeRow}>
-          <View style={styles.verifiedBadge}>
-            <ShieldCheck size={14} color="#059669" style={{ marginRight: 4 }} />
-            <Text style={styles.verifiedBadgeText}>{isUrdu ? 'تصدیق شدہ کسان' : 'Verified Genuine Farmer'}</Text>
-          </View>
-          <View style={styles.qualityBadge}>
-            <Text style={styles.qualityBadgeText}>{listing.quality || 'Grade A'}</Text>
-          </View>
-        </View>
+      {/* ── Multi-Media Viewer (1-8 Images & 3 Videos) ────────────────────── */}
+      <Box className="space-y-2 mb-4">
+        {allMedia.length > 0 ? (
+          <Box className="relative w-full aspect-4/3 rounded-2xl overflow-hidden bg-slate-950 border border-slate-200 shadow-sm flex items-center justify-center">
+            {activeMedia.type === 'video' ? (
+              <Vid
+                key={activeMedia.url}
+                src={activeMedia.url}
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <Img
+                src={activeMedia.url}
+                alt={listing.cropName}
+                className="w-full h-full object-cover"
+              />
+            )}
 
-        <Text style={styles.cropTitle}>{listing.cropName || 'Fresh Harvest'}</Text>
-        {listing.variety ? <Text style={styles.varietyText}>{listing.variety}</Text> : null}
+            {/* Media Type Badge */}
+            <Box className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+              <T className="px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-xs text-[10px] font-bold text-white flex items-center gap-1">
+                {activeMedia.type === 'video' ? (
+                  <>
+                    <Video className="w-3 h-3 text-rose-400" />
+                    <T>Video {activeMedia.index + 1} of {videos.length}</T>
+                  </>
+                ) : (
+                  <>
+                    <Camera className="w-3 h-3 text-white" />
+                    <T>Photo {activeMedia.index + 1} of {images.length}</T>
+                  </>
+                )}
+              </T>
+            </Box>
 
-        <View style={styles.priceRow}>
-          <View>
-            <Text style={styles.priceLabel}>{isUrdu ? 'قیمت فی من / اکائی' : 'Unit Price'}</Text>
-            <Text style={styles.priceVal}>PKR {listing.price} <Text style={styles.unitText}>/ {listing.unit || 'Kg'}</Text></Text>
-          </View>
-          {listing.quantity ? (
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={styles.priceLabel}>{isUrdu ? 'دستیاب مقدار' : 'Available Harvest'}</Text>
-              <Text style={styles.qtyVal}>{listing.quantity} {listing.unit || 'Kg'}</Text>
-            </View>
-          ) : null}
-        </View>
+            {listing.status === 'sold' && (
+              <Box className="absolute top-2.5 right-2.5 px-3 py-1 rounded-full bg-slate-900/90 text-white text-[11px] font-black uppercase tracking-wider">
+                SOLD OUT
+              </Box>
+            )}
+          </Box>
+        ) : (
+          <Box className="w-full aspect-4/3 rounded-2xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center text-slate-400">
+            <Store className="w-12 h-12 mb-1" />
+            <T className="text-xs font-bold">No Photos Uploaded</T>
+          </Box>
+        )}
 
-        {/* Location & Harvest Date */}
-        <View style={styles.metaRow}>
-          <View style={styles.metaItem}>
-            <MapPin size={14} color="#64748b" style={{ marginRight: 6 }} />
-            <Text style={styles.metaText}>{listing.district || 'Faisalabad'}, {listing.province || 'Punjab'}</Text>
-          </View>
-          {listing.harvestDate ? (
-            <View style={styles.metaItem}>
-              <Calendar size={14} color="#64748b" style={{ marginRight: 6 }} />
-              <Text style={styles.metaText}>Harvested: {listing.harvestDate}</Text>
-            </View>
-          ) : null}
-        </View>
+        {/* Media Thumbnails Carousel (Allows switching 1-8 images and up to 3 videos) */}
+        {allMedia.length > 1 && (
+          <Box className="flex gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin">
+            {allMedia.map((m, idx) => {
+              const isSelected = idx === activeMediaIndex;
+              return (
+                <Btn
+                  key={idx}
+                  type="button"
+                  onClick={() => setActiveMediaIndex(idx)}
+                  className={`relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border-2 transition cursor-pointer ${
+                    isSelected
+                      ? 'border-slate-900 shadow-sm scale-105'
+                      : 'border-slate-200 opacity-70 hover:opacity-100'
+                  }`}
+                >
+                  {m.type === 'video' ? (
+                    <Box className="w-full h-full bg-black flex items-center justify-center text-white">
+                      <Play className="w-5 h-5 text-rose-500 fill-rose-500" />
+                      <T className="absolute bottom-0.5 right-0.5 text-[8px] font-bold text-white bg-black/80 px-1 rounded">
+                        Vid
+                      </T>
+                    </Box>
+                  ) : (
+                    <Img
+                      src={m.url}
+                      alt={`Thumbnail ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                </Btn>
+              );
+            })}
+          </Box>
+        )}
+      </Box>
 
-        {/* Farmer Info */}
-        <View style={styles.farmerBox}>
-          <View style={styles.farmerAvatar}>
-            <Text style={{ fontSize: 18 }}>👨‍🌾</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.farmerName}>{listing.farmerName || 'Muhammad Tariq'}</Text>
-            <Text style={styles.farmerLoc}>{listing.village ? `${listing.village}, ` : ''}{listing.district || 'Punjab'}</Text>
-          </View>
-        </View>
+      {/* ── Produce Primary Pricing & Summary ─────────────────────────────── */}
+      <Box className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs mb-4 space-y-3">
+        <Box className="flex items-start justify-between gap-2">
+          <Box>
+            <T className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold inline-block mb-1.5">
+              {listing.quality || 'Premium Quality'}
+            </T>
+            <T className="text-xl font-black text-slate-900 leading-tight">
+              {listing.cropName}
+            </T>
+            {listing.variety && (
+              <T className="text-xs text-slate-500 font-semibold mt-0.5">
+                Variety: {listing.variety}
+              </T>
+            )}
+          </Box>
 
-        {/* Description */}
-        <Text style={styles.sectionHeading}>{isUrdu ? 'فصل کی تفصیلات' : 'Produce Description'}</Text>
-        <Text style={styles.descText}>
-          {listing.description ||
-            (isUrdu
-              ? 'کھیت سے براہ راست تازہ کٹائی شدہ اعلیٰ معیار کی فصل۔ کوئی ملاوٹ نہیں۔'
-              : 'Direct farm fresh crop harvested with proper moisture control and storage standard.')}
-        </Text>
+          <Box className="text-right">
+            <T className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+              Unit Price
+            </T>
+            <Box className="text-xl font-black text-slate-900">
+              Rs {listing.price}
+            </Box>
+            <T className="text-[10px] text-slate-500 font-semibold">
+              per {listing.unit}
+            </T>
+          </Box>
+        </Box>
 
-        {/* Contact CTAs */}
-        <View style={styles.ctaRow}>
-          <TouchableOpacity style={styles.callBtn} onPress={handleCall}>
-            <Phone size={16} color="#ffffff" style={{ marginRight: 6 }} />
-            <Text style={styles.callBtnText}>{isUrdu ? 'کال کریں' : 'Call Farmer'}</Text>
-          </TouchableOpacity>
+        {calculateTotal() && (
+          <Box className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+            <T className="text-slate-500 font-semibold">Total Stock ({listing.quantity} {listing.unit}):</T>
+            <T className="text-sm font-black text-slate-900">PKR {calculateTotal()}</T>
+          </Box>
+        )}
+      </Box>
 
-          <TouchableOpacity style={styles.waBtn} onPress={handleWhatsApp}>
-            <MessageCircle size={16} color="#ffffff" style={{ marginRight: 6 }} />
-            <Text style={styles.waBtnText}>WhatsApp</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ScrollView>
+      {/* ── Section: Full Produce Description ─────────────────────────────── */}
+      <Box className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs mb-4 space-y-2">
+        <T className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+          Produce Description & Field Notes
+        </T>
+        {listing.description ? (
+          <T className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+            {listing.description}
+          </T>
+        ) : (
+          <T className="text-xs text-slate-400 italic">
+            No additional notes provided by seller.
+          </T>
+        )}
+      </Box>
+
+      {/* ── Section: Full Metadata Table ──────────────────────────────────── */}
+      <Box className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs mb-4 space-y-3">
+        <T className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+          Produce Specifications & Metadata
+        </T>
+
+        <Box className="grid grid-cols-2 gap-2.5 text-xs">
+          <Box className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+            <T className="text-[10px] text-slate-400 font-bold uppercase block">
+              Quantity Listed
+            </T>
+            <T className="font-extrabold text-slate-900">
+              {listing.quantity} {listing.unit}
+            </T>
+          </Box>
+
+          <Box className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+            <T className="text-[10px] text-slate-400 font-bold uppercase block">
+              Quality Grade
+            </T>
+            <T className="font-extrabold text-slate-900">
+              {listing.quality || 'Standard'}
+            </T>
+          </Box>
+
+          <Box className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+            <T className="text-[10px] text-slate-400 font-bold uppercase block">
+              Harvest Date
+            </T>
+            <T className="font-extrabold text-slate-900">
+              {listing.harvestDate || 'Fresh Harvest'}
+            </T>
+          </Box>
+
+          <Box className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+            <T className="text-[10px] text-slate-400 font-bold uppercase block">
+              Listing Code
+            </T>
+            <T className="font-mono text-[10px] font-bold text-slate-700 truncate block">
+              {listing.id}
+            </T>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* ── Section: Farmer Information & Location ────────────────────────── */}
+      <Box className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs mb-4 space-y-3">
+        <Box className="flex items-center justify-between">
+          <T className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+            <User className="w-4 h-4 text-slate-700" />
+            <T>Farmer Information & Direct Contact</T>
+          </T>
+          <T className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-900 border border-slate-300 text-[10px] font-extrabold inline-flex items-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-slate-900" />
+            <T>Verified Farmer</T>
+          </T>
+        </Box>
+
+        <Box className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+          <Box className="flex items-center justify-between">
+            <Box>
+              <T className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+                <T>{listing.farmerName || 'Farmer'}</T>
+                <CheckCircle2 className="w-4 h-4 text-slate-900 shrink-0" />
+              </T>
+              <T className="text-xs text-slate-600 font-semibold mt-0.5 flex items-center gap-1">
+                <Phone className="w-3.5 h-3.5 text-slate-400" />
+                <T>{listing.farmerPhone || 'Contact details provided'}</T>
+              </T>
+            </Box>
+            <T className="text-[10px] font-bold text-slate-900 bg-white border border-slate-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3 text-slate-900" />
+              <T>Verified Seller</T>
+            </T>
+          </Box>
+          <Box className="pt-2 border-t border-slate-200/70 text-[10.5px] text-slate-500 leading-tight">
+            🛡️ <T className="font-semibold text-slate-700">Buyer Protection:</T> Seller's CNIC, phone number, and farm location have been verified in our cloud registry.
+          </Box>
+        </Box>
+
+        {/* Location Details */}
+        <Box className="space-y-1.5 pt-1">
+          <T className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+            Farm / Mandi Location
+          </T>
+          <Box className="flex items-start gap-2 text-xs font-semibold text-slate-800">
+            <MapPin className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+            <Box>
+              <T>
+                {[listing.village, listing.tehsil, listing.district, listing.province]
+                  .filter(Boolean)
+                  .join(', ') || 'Pakistan'}
+              </T>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* ── Floating Action Bar: Direct WhatsApp & Call Buttons ───────────── */}
+      <Box className="fixed bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center justify-center max-w-md mx-auto z-20">
+        <Box className="w-full flex items-center gap-2">
+          {/* Call Farmer */}
+          <Btn
+            type="button"
+            onClick={handleCall}
+            className="flex-1 h-12 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-900 font-bold text-xs flex items-center justify-center gap-2 shadow-2xs transition active:scale-95 cursor-pointer"
+          >
+            <Phone className="w-4 h-4 text-slate-700" />
+            <T>Call Farmer</T>
+          </Btn>
+
+          {/* WhatsApp Farmer */}
+          <Btn
+            type="button"
+            onClick={handleWhatsApp}
+            className="flex-1 h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition active:scale-95 cursor-pointer"
+          >
+            <MessageCircle className="w-4 h-4" />
+            <T>Chat on WhatsApp</T>
+          </Btn>
+        </Box>
+      </Box>
+    </Box>
   );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
-  content: { padding: 16, paddingBottom: 40 },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
-  backText: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
-  shareBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
-  coverImage: { width: '100%', height: 220, borderRadius: 20, marginBottom: 16, borderWidth: 1, borderColor: '#e2e8f0' },
-  imagePlaceholder: { width: '100%', height: 160, borderRadius: 20, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  card: { backgroundColor: '#ffffff', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#e2e8f0' },
-  badgeRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  verifiedBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#d1fae5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  verifiedBadgeText: { fontSize: 11, fontWeight: '800', color: '#065f46' },
-  qualityBadge: { backgroundColor: '#f1f5f9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0' },
-  qualityBadgeText: { fontSize: 11, fontWeight: '800', color: '#0f172a' },
-  cropTitle: { fontSize: 22, fontWeight: '900', color: '#0f172a', marginBottom: 2 },
-  varietyText: { fontSize: 13, color: '#64748b', marginBottom: 12 },
-  priceRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#f1f5f9', marginBottom: 12 },
-  priceLabel: { fontSize: 11, color: '#64748b' },
-  priceVal: { fontSize: 18, fontWeight: '900', color: '#059669', marginTop: 2 },
-  unitText: { fontSize: 12, fontWeight: '600', color: '#64748b' },
-  qtyVal: { fontSize: 15, fontWeight: '800', color: '#0f172a', marginTop: 2 },
-  metaRow: { gap: 6, marginBottom: 14 },
-  metaItem: { flexDirection: 'row', alignItems: 'center' },
-  metaText: { fontSize: 12, color: '#475569' },
-  farmerBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#f8fafc', padding: 12, borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 16 },
-  farmerAvatar: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#e2e8f0' },
-  farmerName: { fontSize: 13, fontWeight: '800', color: '#0f172a' },
-  farmerLoc: { fontSize: 11, color: '#64748b' },
-  sectionHeading: { fontSize: 12, fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', marginBottom: 6 },
-  descText: { fontSize: 13, color: '#475569', lineHeight: 19, marginBottom: 20 },
-  ctaRow: { flexDirection: 'row', gap: 10 },
-  callBtn: { flex: 1, backgroundColor: '#0f172a', paddingVertical: 14, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  callBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '800' },
-  waBtn: { flex: 1, backgroundColor: '#25d366', paddingVertical: 14, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  waBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '800' },
-  notFoundContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
-  notFoundText: { fontSize: 16, fontWeight: '800', color: '#0f172a', marginBottom: 12 },
-  backBtnPill: { backgroundColor: '#0f172a', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
-  backBtnPillText: { color: '#ffffff', fontSize: 12, fontWeight: '700' },
-});
+};

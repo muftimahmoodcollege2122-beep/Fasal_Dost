@@ -296,6 +296,16 @@ function cleanJson(rawText: string, cropHint = '', userLang = 'en'): DiagnosticR
   };
 }
 
+function pcmToWavBase64(pcmBase64: string, sampleRate = 24000, channels = 1, bitsPerSample = 16): string {
+  const pcm = Buffer.from(pcmBase64, 'base64');
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVE', 8); h.write('fmt ', 12);
+  h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(channels, 22); h.writeUInt32LE(sampleRate, 24);
+  h.writeUInt32LE((sampleRate * channels * bitsPerSample) / 8, 28); h.writeUInt16LE((channels * bitsPerSample) / 8, 32);
+  h.writeUInt16LE(bitsPerSample, 34); h.write('data', 36); h.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([h, pcm]).toString('base64');
+}
+
 export class DiagnosticsService implements IDiagnosticsModule {
   private getAiClient(customApiKey?: string): GoogleGenAI | null {
     const serverKey =
@@ -827,10 +837,13 @@ IMPORTANT: You MUST write the localized fields (crop_detected_localized, disease
 
         const part = response.candidates?.[0]?.content?.parts?.[0];
         const audioBase64 = part?.inlineData?.data;
-        const mimeType = part?.inlineData?.mimeType || 'audio/wav';
+        const rawMime = part?.inlineData?.mimeType || 'audio/L16;codec=pcm;rate=24000';
 
         if (audioBase64) {
-          return { audioBase64, mimeType };
+          // Gemini TTS returns raw 16-bit PCM; wrap it in a WAV header so browsers AND the mobile app can play it.
+          if (/wav/i.test(rawMime) && !/L16|pcm/i.test(rawMime)) return { audioBase64, mimeType: 'audio/wav' };
+          const rate = Number((rawMime.match(/rate=(\d+)/) || [])[1]) || 24000;
+          return { audioBase64: pcmToWavBase64(audioBase64, rate), mimeType: 'audio/wav' };
         }
       } catch (err) {
         console.warn(`[DiagnosticsService] Gemini Studio TTS model ${model} error:`, err);

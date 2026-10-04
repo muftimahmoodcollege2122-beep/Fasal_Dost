@@ -1,240 +1,195 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// mobile/screens/HomeScreen.tsx
-// Main Landing Screen for FasalDost (Identical to Web Experience)
+// src/screens/HomeScreen.tsx
+// Main Landing Screen for FasalDost (Professional White Edition)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { pickMedia } from '../utils/media';
+import { Box, Btn, Inp, T } from '../ui/web';
 import {
-  Camera,
-  Image as ImageIcon,
   Store,
-  Clock,
+  History,
+  User,
   Settings,
   Sprout,
+  Camera,
+  Image as ImageIcon,
+  ChevronRight,
   Sparkles,
   ShieldCheck,
-  ChevronRight,
-  Crown,
-  CloudRain,
-  User,
-} from 'lucide-react-native';
+} from '../ui/icons';
 import { Language, t } from '../utils/i18n';
-import { mobileApi } from '../utils/api';
+import { setImage, getFarmerProfile, isProfileComplete } from '../utils/store';
 
-export function HomeScreen({
-  lang,
-  onNavigate,
-  onPickImage,
-  onCaptureImage,
-}: {
+interface HomeScreenProps {
   lang: Language;
   onNavigate: (screen: string, params?: any) => void;
-  onPickImage?: () => void;
-  onCaptureImage?: () => void;
-}) {
-  const isUrdu = lang === 'ur';
+}
+
+export const HomeScreen: React.FC<HomeScreenProps> = ({
+  lang,
+  onNavigate,
+}) => {
   const [farmerName, setFarmerName] = useState('');
 
   useEffect(() => {
     (async () => {
-      try {
-        const profile = await mobileApi.farmers.getProfile('current');
-        if (profile?.fullName) {
-          setFarmerName(profile.fullName);
-        }
-      } catch {}
+      const complete = await isProfileComplete();
+      if (!complete) {
+        onNavigate('FarmerProfile', { onboarding: true });
+        return;
+      }
+      const profile = await getFarmerProfile();
+      if (profile?.name) {
+        setFarmerName(profile.name);
+      }
     })();
   }, []);
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Top Bar: Clean Action Icons matching Web */}
-      <View style={styles.topBar}>
-        <View style={styles.brandRow}>
-          <View style={styles.fdBadge}>
-            <Text style={styles.fdBadgeText}>FD</Text>
-          </View>
-          <Text style={styles.brandLabel}>{t('agritechAi', lang)}</Text>
-        </View>
+  const pickAndScan = async (source: 'camera' | 'gallery') => {
+    const [img] = await pickMedia({ source });
+    if (!img) return;
+    setImage(img.dataUrl, img.base64);
+    onNavigate('Scan');
+  };
 
-        <View style={styles.headerActions}>
-          {/* History Icon */}
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={() => onNavigate('History')}
-            accessibilityLabel="Scan History"
+  return (
+    <Box className="flex flex-col min-h-full pb-10">
+
+      {/* Top Bar: Clean Action Icons */}
+      <Box className="flex items-center justify-between py-2 mb-4 border-b border-slate-100 pb-3">
+        <Box className="flex items-center gap-2">
+          <Box className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
+            FD
+          </Box>
+          <T className="text-xs font-bold text-slate-700 tracking-wide uppercase">
+            {t('agritechAi', lang)}
+          </T>
+        </Box>
+
+        <Box className="flex items-center gap-2">
+          {/* Recent Scans / History Icon */}
+          <Btn
+            onClick={() => onNavigate('History')}
+            title="Recent Scans"
+            className="w-10 h-10 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 transition active:scale-95 shadow-2xs cursor-pointer"
           >
-            <Clock size={18} color="#334155" />
-          </TouchableOpacity>
+            <History className="w-4 h-4" />
+          </Btn>
 
           {/* Marketplace Icon */}
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={() => onNavigate('Marketplace')}
-            accessibilityLabel="Marketplace"
+          <Btn
+            onClick={() => onNavigate('Marketplace')}
+            title="Marketplace"
+            className="w-10 h-10 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 transition active:scale-95 shadow-2xs cursor-pointer"
           >
-            <Store size={18} color="#334155" />
-          </TouchableOpacity>
+            <Store className="w-4 h-4" />
+          </Btn>
 
-          {/* Settings Icon */}
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={() => onNavigate('Settings')}
-            accessibilityLabel="Settings"
+          {/* Settings Icon (Houses Farmer Profile & Preferences) */}
+          <Btn
+            onClick={() => onNavigate('Settings')}
+            title="Settings & Farmer Profile"
+            className="w-10 h-10 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 transition active:scale-95 shadow-2xs cursor-pointer"
           >
-            <Settings size={18} color="#334155" />
-          </TouchableOpacity>
-        </View>
-      </View>
+            <Settings className="w-4 h-4" />
+          </Btn>
+        </Box>
+      </Box>
 
       {/* Hero Section */}
-      <View style={styles.heroSection}>
-        <View style={styles.sproutBox}>
-          <Sprout size={32} color="#0f172a" />
-        </View>
-        <Text style={styles.appTitle}>{t('appName', lang)}</Text>
+      <Box className="flex flex-col items-center text-center my-3">
+        <Box className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center mb-3 shadow-xs text-slate-900">
+          <Sprout className="w-8 h-8" />
+        </Box>
+        <T className="text-3xl font-extrabold text-slate-900 tracking-tight mb-1">
+          {t('appName', lang)}
+        </T>
 
-        {farmerName ? (
-          <Text style={styles.welcomeText}>
+        {farmerName && (
+          <T className="text-sm font-semibold text-slate-700 mb-1">
             {t('welcomeBack', lang)}, {farmerName}
-          </Text>
-        ) : null}
+          </T>
+        )}
 
-        <Text style={styles.subtitleText}>{t('subtitle', lang)}</Text>
-      </View>
+        <T className="text-xs text-slate-500 max-w-xs leading-relaxed">
+          {t('subtitle', lang)}
+        </T>
+      </Box>
 
       {/* Primary Actions */}
-      <View style={styles.actionGroup}>
-        {/* Take Photo Button - Solid Dark CTA */}
-        <TouchableOpacity
-          style={styles.takePhotoBtn}
-          onPress={() => {
-            if (onCaptureImage) onCaptureImage();
-            else onNavigate('Scan');
-          }}
+      <Box className="flex flex-col gap-3 my-4">
+        {/* Take Photo Button - Solid Professional Dark CTA */}
+        <Btn
+          onClick={() => pickAndScan('camera')}
+          className="w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-base shadow-sm transition active:scale-[0.98] cursor-pointer"
         >
-          <Camera size={20} color="#ffffff" style={{ marginRight: 8 }} />
-          <Text style={styles.takePhotoText}>{t('takePhoto', lang)}</Text>
-        </TouchableOpacity>
+          <Camera className="w-5 h-5 shrink-0" />
+          <T>{t('takePhoto', lang)}</T>
+        </Btn>
 
-        {/* Upload from Gallery Button */}
-        <TouchableOpacity
-          style={styles.galleryBtn}
-          onPress={() => {
-            if (onPickImage) onPickImage();
-            else onNavigate('Scan');
-          }}
+        {/* Upload from Gallery Button - Professional Crisp White */}
+        <Btn
+          onClick={() => pickAndScan('gallery')}
+          className="w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-2xl border border-slate-200 bg-white text-slate-800 font-bold text-sm hover:bg-slate-50 transition active:scale-[0.98] shadow-2xs cursor-pointer"
         >
-          <ImageIcon size={18} color="#1e293b" style={{ marginRight: 8 }} />
-          <Text style={styles.galleryText}>{t('uploadPhoto', lang)}</Text>
-        </TouchableOpacity>
+          <ImageIcon className="w-5 h-5 text-slate-700 shrink-0" />
+          <T>{t('uploadPhoto', lang)}</T>
+        </Btn>
 
-        {/* Marketplace Promo Card */}
-        <TouchableOpacity
-          style={styles.marketplaceBanner}
-          onPress={() => onNavigate('Marketplace')}
+        {/* Marketplace Promo Banner - Clean Crisp Card */}
+        <Btn
+          onClick={() => onNavigate('Marketplace')}
+          className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50/80 transition active:scale-[0.98] shadow-2xs text-start cursor-pointer"
         >
-          <View style={styles.marketBannerLeft}>
-            <View style={styles.marketIconBox}>
-              <Store size={20} color="#0f172a" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.marketTitle}>{t('marketplace', lang)}</Text>
-              <Text style={styles.marketSub}>{t('marketplaceSubtitle', lang)}</Text>
-            </View>
-          </View>
-          <ChevronRight size={18} color="#94a3b8" />
-        </TouchableOpacity>
-      </View>
+          <Box className="flex items-center gap-3">
+            <Box className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-800 shrink-0">
+              <Store className="w-5 h-5" />
+            </Box>
+            <Box>
+              <T className="font-extrabold text-slate-900 text-sm">
+                {t('marketplace', lang)}
+              </T>
+              <T className="text-xs text-slate-500 mt-0.5">
+                {t('marketplaceSubtitle', lang)}
+              </T>
+            </Box>
+          </Box>
+          <Box className="text-slate-400">
+            <ChevronRight className="w-5 h-5 rtl:rotate-180" />
+          </Box>
+        </Btn>
+      </Box>
 
       {/* How It Works Section */}
-      <View style={styles.howItWorksCard}>
-        <Text style={styles.howItWorksHeader}>{t('howItWorks', lang)}</Text>
-        <View style={styles.stepsRow}>
-          <View style={styles.stepCol}>
-            <View style={styles.stepCircle}>
-              <Camera size={16} color="#334155" />
-            </View>
-            <Text style={styles.stepTitle}>{t('step1Title', lang)}</Text>
-            <Text style={styles.stepDesc}>{t('step1Desc', lang)}</Text>
-          </View>
-
-          <View style={styles.stepCol}>
-            <View style={styles.stepCircle}>
-              <Sparkles size={16} color="#334155" />
-            </View>
-            <Text style={styles.stepTitle}>{t('step2Title', lang)}</Text>
-            <Text style={styles.stepDesc}>{t('step2Desc', lang)}</Text>
-          </View>
-
-          <View style={styles.stepCol}>
-            <View style={styles.stepCircle}>
-              <ShieldCheck size={16} color="#334155" />
-            </View>
-            <Text style={styles.stepTitle}>{t('step3Title', lang)}</Text>
-            <Text style={styles.stepDesc}>{t('step3Desc', lang)}</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Quick Services Row */}
-      <View style={styles.servicesGrid}>
-        <TouchableOpacity style={styles.serviceCard} onPress={() => onNavigate('Subscription')}>
-          <View style={[styles.serviceIconBox, { backgroundColor: '#fef3c7' }]}>
-            <Crown size={18} color="#b45309" />
-          </View>
-          <Text style={styles.serviceTitle}>{isUrdu ? 'سبسکرپشن' : 'Subscription'}</Text>
-          <Text style={styles.serviceSub}>Free 7 Scans</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.serviceCard} onPress={() => onNavigate('FarmerProfile')}>
-          <View style={[styles.serviceIconBox, { backgroundColor: '#f1f5f9' }]}>
-            <User size={18} color="#0f172a" />
-          </View>
-          <Text style={styles.serviceTitle}>{isUrdu ? 'پروفائل' : 'Profile'}</Text>
-          <Text style={styles.serviceSub}>{isUrdu ? 'تصدیق کارڈ' : 'Farmer ID'}</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+      <Box className="mt-2 p-4 rounded-2xl border border-slate-200 bg-slate-50/80">
+        <T className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3 text-center">
+          {t('howItWorks', lang)}
+        </T>
+        <Box className="grid grid-cols-3 gap-2 text-center">
+          <Box className="flex flex-col items-center">
+            <Box className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center mb-2 shadow-2xs text-slate-700">
+              <Camera className="w-4 h-4" />
+            </Box>
+            <T className="text-xs font-bold text-slate-800 mb-0.5">{t('step1Title', lang)}</T>
+            <T className="text-[11px] text-slate-500 leading-tight">{t('step1Desc', lang)}</T>
+          </Box>
+          <Box className="flex flex-col items-center">
+            <Box className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center mb-2 shadow-2xs text-slate-700">
+              <Sparkles className="w-4 h-4" />
+            </Box>
+            <T className="text-xs font-bold text-slate-800 mb-0.5">{t('step2Title', lang)}</T>
+            <T className="text-[11px] text-slate-500 leading-tight">{t('step2Desc', lang)}</T>
+          </Box>
+          <Box className="flex flex-col items-center">
+            <Box className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center mb-2 shadow-2xs text-slate-700">
+              <ShieldCheck className="w-4 h-4" />
+            </Box>
+            <T className="text-xs font-bold text-slate-800 mb-0.5">{t('step3Title', lang)}</T>
+            <T className="text-[11px] text-slate-500 leading-tight">{t('step3Desc', lang)}</T>
+          </Box>
+        </Box>
+      </Box>
+    </Box>
   );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
-  contentContainer: { padding: 16, paddingBottom: 40 },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', marginBottom: 12 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  fdBadge: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' },
-  fdBadgeText: { color: '#ffffff', fontWeight: '800', fontSize: 12 },
-  brandLabel: { fontSize: 11, fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: 0.5 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
-  heroSection: { alignItems: 'center', marginVertical: 10, paddingHorizontal: 16 },
-  sproutBox: { width: 64, height: 64, borderRadius: 20, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  appTitle: { fontSize: 26, fontWeight: '900', color: '#0f172a', marginBottom: 4 },
-  welcomeText: { fontSize: 13, fontWeight: '700', color: '#334155', marginBottom: 2 },
-  subtitleText: { fontSize: 12, color: '#64748b', textAlign: 'center', lineHeight: 18, maxWidth: 280 },
-  actionGroup: { gap: 10, marginVertical: 14 },
-  takePhotoBtn: { backgroundColor: '#0f172a', borderRadius: 18, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  takePhotoText: { color: '#ffffff', fontSize: 14, fontWeight: '800' },
-  galleryBtn: { backgroundColor: '#ffffff', borderRadius: 18, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#cbd5e1' },
-  galleryText: { color: '#1e293b', fontSize: 14, fontWeight: '800' },
-  marketplaceBanner: { backgroundColor: '#ffffff', borderRadius: 18, padding: 14, borderWidth: 1, borderColor: '#e2e8f0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  marketBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  marketIconBox: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
-  marketTitle: { fontSize: 13, fontWeight: '800', color: '#0f172a' },
-  marketSub: { fontSize: 11, color: '#64748b', marginTop: 1 },
-  howItWorksCard: { backgroundColor: '#f8fafc', borderRadius: 18, padding: 14, borderWidth: 1, borderColor: '#e2e8f0', marginVertical: 12 },
-  howItWorksHeader: { fontSize: 11, fontWeight: '800', color: '#475569', textTransform: 'uppercase', textAlign: 'center', marginBottom: 12, letterSpacing: 0.5 },
-  stepsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  stepCol: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
-  stepCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#cbd5e1', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  stepTitle: { fontSize: 11, fontWeight: '800', color: '#1e293b', textAlign: 'center', marginBottom: 2 },
-  stepDesc: { fontSize: 10, color: '#64748b', textAlign: 'center', lineHeight: 13 },
-  servicesGrid: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  serviceCard: { flex: 1, backgroundColor: '#ffffff', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center' },
-  serviceIconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  serviceTitle: { fontSize: 12, fontWeight: '800', color: '#0f172a' },
-  serviceSub: { fontSize: 10, color: '#64748b', marginTop: 1 },
-});
+};

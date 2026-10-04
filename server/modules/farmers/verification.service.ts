@@ -3,6 +3,7 @@
 // Intelligent Verification Engine: CNIC Document Forensics, AI OCR & Anti-Bot Screening
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { createHash } from 'crypto';
 import { GoogleGenAI } from '@google/genai';
 import { AppError } from '../../core/types';
 
@@ -139,9 +140,10 @@ export class DocumentVerificationService {
     this.validateImagePayload(data.cnicBackDataUrl, 'CNIC Back Image', issues);
 
     // Prevent uploading identical images across fields
-    const hashSelfie = data.profilePhotoDataUrl.slice(0, 120);
-    const hashFront = data.cnicFrontDataUrl.slice(0, 120);
-    const hashBack = data.cnicBackDataUrl.slice(0, 120);
+    const sha = (x: string) => createHash('sha256').update(x).digest('hex');
+    const hashSelfie = sha(data.profilePhotoDataUrl);
+    const hashFront = sha(data.cnicFrontDataUrl);
+    const hashBack = sha(data.cnicBackDataUrl);
 
     if (hashFront === hashBack) {
       issues.push('CNIC front and back cannot be the exact same image');

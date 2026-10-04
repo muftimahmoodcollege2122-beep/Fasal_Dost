@@ -1,137 +1,55 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// mobile/utils/api.ts
-// Typed API Client for FasalDost Mobile Application
+// src/utils/api.ts
+// Crop disease detection AI engine: routes to modular backend with database storage
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL || 'https://ais-dev-hexsq6a75nx3v7mukdbtq4-171051146732.asia-southeast1.run.app';
+import { DetectionResult } from './store';
+import { apiClient } from '../shared/apiClient';
 
-export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: {
-    code: string;
-    message: string;
-    details?: any;
-  };
-  meta?: any;
-}
-
-class MobileApiClient {
-  private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'x-client-platform': 'mobile-expo',
-      ...(options?.headers as Record<string, string>),
-    };
-
-    const res = await fetch(url, {
-      ...options,
-      headers,
-    });
-
-    const body: ApiResponse<T> = await res.json();
-    if (!res.ok || !body.success) {
-      throw new Error(body.error?.message || `Request failed with status ${res.status}`);
-    }
-
-    return body.data as T;
+export async function detectDisease(imageBase64: string, cropName = '', language = 'en'): Promise<DetectionResult> {
+  if (!imageBase64 || typeof imageBase64 !== 'string') {
+    throw new Error('No crop image provided for diagnostic scan');
   }
 
-  public diagnostics = {
-    scan: async (
-      imageBase64: string,
-      cropName = '',
-      language = 'en'
-    ): Promise<any> => {
-      return this.request('/api/diagnostics/scan', {
-        method: 'POST',
-        headers: { 'x-app-language': language },
-        body: JSON.stringify({ imageBase64, cropName, language }),
-      });
-    },
-    synthesizeSpeech: async (
-      text: string,
-      language = 'ur',
-      voiceName?: string
-    ): Promise<{ audioBase64: string; mimeType: string }> => {
-      return this.request('/api/diagnostics/tts', {
-        method: 'POST',
-        headers: { 'x-app-language': language },
-        body: JSON.stringify({ text, language, voiceName }),
-      });
-    },
-    getHistory: async (limit = 30): Promise<any[]> => {
-      return this.request(`/api/diagnostics/history?limit=${limit}`);
-    },
-    deleteScan: async (scanCode: string): Promise<boolean> => {
-      await this.request(`/api/diagnostics/history/${scanCode}`, { method: 'DELETE' });
-      return true;
-    },
-    clearHistory: async (): Promise<boolean> => {
-      await this.request('/api/diagnostics/history', { method: 'DELETE' });
-      return true;
-    },
-    getCrops: async (): Promise<string[]> => {
-      const res = await this.request<{ crops: string[] }>('/api/diagnostics/crops');
-      return res.crops;
-    },
-  };
+  // Route through modular monolith backend with PostgreSQL diagnostic scan record
+  const result = await apiClient.diagnostics.scan(imageBase64, cropName, language);
+  if (!result) {
+    throw new Error('Could not analyze leaf image. Please ensure good lighting and clear focus.');
+  }
 
-  public marketplace = {
-    getListings: async (params?: Record<string, string>): Promise<any[]> => {
-      const searchParams = new URLSearchParams(params);
-      const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
-      return this.request(`/api/marketplace/listings${query}`);
-    },
-    getListingById: async (id: string): Promise<any> => {
-      return this.request(`/api/marketplace/listings/${id}`);
-    },
-    createListing: async (listing: any): Promise<any> => {
-      return this.request('/api/marketplace/listings', {
-        method: 'POST',
-        body: JSON.stringify(listing),
-      });
-    },
-    deleteListing: async (id: string): Promise<boolean> => {
-      await this.request(`/api/marketplace/listings/${id}`, { method: 'DELETE' });
-      return true;
-    },
-  };
-
-  public farmers = {
-    getProfile: async (uid: string): Promise<any> => {
-      return this.request(`/api/farmers/profile/${uid}`);
-    },
-    updateProfile: async (uid: string, data: any): Promise<any> => {
-      return this.request(`/api/farmers/profile/${uid}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      });
-    },
-    verifySeller: async (uid: string, data: any): Promise<any> => {
-      return this.request(`/api/farmers/verify-seller/${uid}`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-    },
-  };
-
-  public auth = {
-    sendEmailOtp: async (email: string, farmerName?: string): Promise<any> => {
-      return this.request('/api/auth/send-email-otp', {
-        method: 'POST',
-        body: JSON.stringify({ email, farmerName }),
-      });
-    },
-    verifyEmailOtp: async (email: string, otp: string): Promise<any> => {
-      return this.request('/api/auth/verify-email-otp', {
-        method: 'POST',
-        body: JSON.stringify({ email, otp }),
-      });
-    },
+  return {
+    is_valid_plant: result.is_valid_plant ?? true,
+    is_image_clear: result.is_image_clear ?? true,
+    rejection_code: result.rejection_code || 'NONE',
+    rejection_reason_en: result.rejection_reason_en,
+    rejection_reason_ur: result.rejection_reason_ur,
+    rejection_reason_localized: result.rejection_reason_localized,
+    image_quality: result.image_quality || 'good',
+    crop_detected_en: result.crop_detected_en,
+    crop_detected_ur: result.crop_detected_ur,
+    crop_detected_localized: result.crop_detected_localized,
+    overall_confidence: result.overall_confidence,
+    is_healthy: result.is_healthy,
+    prevention_en: result.prevention_en,
+    prevention_ur: result.prevention_ur,
+    prevention_localized: result.prevention_localized,
+    ai_provider: result.ai_provider,
+    ai_model: result.ai_model,
+    language: result.language || language,
+    diseases: (result.diseases || []).map((d) => ({
+      disease_name_en: d.disease_name_en,
+      disease_name_ur: d.disease_name_ur,
+      disease_name_localized: d.disease_name_localized,
+      severity: d.severity,
+      confidence: d.confidence,
+      description_en: d.description_en,
+      description_localized: d.description_localized,
+      symptoms_en: d.symptoms_en,
+      symptoms_localized: d.symptoms_localized,
+      treatment_en: d.treatment_en,
+      treatment_localized: d.treatment_localized,
+      urgency_en: d.urgency_en,
+      urgency_localized: d.urgency_localized,
+    })),
   };
 }
-
-export const mobileApi = new MobileApiClient();
