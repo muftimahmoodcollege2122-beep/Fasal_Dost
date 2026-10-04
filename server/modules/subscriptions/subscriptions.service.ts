@@ -3,7 +3,7 @@
 // Secure Enterprise Payment & Webhook Reconciliation Service
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import crypto from 'crypto';
 import { db } from '../../../src/db/index.ts';
 import { users, subscriptions } from '../../../src/db/schema.ts';
@@ -111,6 +111,27 @@ export const PLAN_CONFIGS: Record<SubscriptionPlan, PlanDetails> = {
   },
 };
 
+
+export const ALLOWED_PAYMENT_METHODS = ['easypaisa', 'jazzcash', 'bank'] as const;
+
+/** Merchant accounts the farmer pays into. Configure via env; unset methods are hidden. */
+export function getPaymentAccounts() {
+  const acc: Record<string, { title: string; account: string }> = {};
+  const add = (id: string, title: string, env?: string) => {
+    if (env && env.trim()) acc[id] = { title, account: env.trim() };
+  };
+  add('easypaisa', process.env.PAYMENT_ACCOUNT_TITLE || 'FasalDost', process.env.EASYPAISA_ACCOUNT);
+  add('jazzcash', process.env.PAYMENT_ACCOUNT_TITLE || 'FasalDost', process.env.JAZZCASH_ACCOUNT);
+  add('bank', process.env.PAYMENT_ACCOUNT_TITLE || 'FasalDost', process.env.BANK_ACCOUNT);
+  return acc;
+}
+
+function planQuota(plan: SubscriptionPlan): number {
+  if (plan === 'diamond') return 500;
+  if (plan === 'unlimited') return 999999;
+  return 250;
+}
+
 export class SubscriptionsService {
   public async getActiveSubscription(userId?: string, _clientIp?: string) {
     if (userId) {
@@ -129,8 +150,30 @@ export class SubscriptionsService {
             monthlyQuota: userRecord.monthlyScanQuota || 0,
             monthlyUsed: userRecord.monthlyScansUsed || 0,
             isPaid: true,
+            pending: null,
           };
         }
+      }
+    }
+
+    let pending: any = null;
+    if (userId) {
+      const [p] = await db
+        .select()
+        .from(subscriptions)
+        .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, 'pending_verification')))
+        .orderBy(desc(subscriptions.id))
+        .limit(1);
+      if (p) {
+        pending = {
+          id: p.id,
+          plan: p.plan,
+          billingCycle: p.billingCycle,
+          amountPkr: p.amountPkr,
+          paymentMethod: p.paymentMethod,
+          paymentReference: p.paymentReference,
+          submittedAt: p.createdAt,
+        };
       }
     }
 
@@ -141,15 +184,14 @@ export class SubscriptionsService {
       monthlyQuota: 0,
       monthlyUsed: 0,
       isPaid: false,
+      pending,
     };
   }
 
   /**
-   * Two-Step Enterprise Subscription Activation:
-   * 1. When a user submits a TID, the subscription is created with status 'pending_verification'.
-   * 2. NO quota or premium features are unlocked until the official Payment Gateway Bank Webhook
-   *    cryptographically confirms the TID in the merchant ledger.
-   * 3. Scam / fake TIDs remain permanently pending and never grant any quota.
+   * Step 1 — farmer pays to the merchant account and submits the transaction ID.
+   * Nothing is unlocked here: the record stays 'pending_verification' until an admin
+   * (or a signed gateway webhook) confirms the payment.
    */
   public async activateSubscription(params: {
     userId?: string;
@@ -161,133 +203,155 @@ export class SubscriptionsService {
   }) {
     const { userId, clientIp, plan, billingCycle, paymentMethod, paymentReference } = params;
 
-    if (plan === 'free') {
-      throw new AppError('Free plan is default', 400);
+    if (!userId || userId === 'guest_farmer') {
+      throw new AppError('Please complete farmer setup / sign in before subscribing.', 401, 'AUTH_REQUIRED');
     }
+    if (plan === 'free') throw new AppError('Free plan is default', 400);
 
     const config = PLAN_CONFIGS[plan];
-    if (!config) {
-      throw new AppError('Invalid subscription plan', 400);
+    if (!config) throw new AppError('Invalid subscription plan', 400);
+    if (billingCycle !== 'monthly' && billingCycle !== 'yearly') {
+      throw new AppError('Invalid billing cycle', 400);
+    }
+    if (!(ALLOWED_PAYMENT_METHODS as readonly string[]).includes(paymentMethod)) {
+      throw new AppError('Unsupported payment method', 400, 'INVALID_PAYMENT_METHOD');
     }
 
-    const amountPkr = billingCycle === 'yearly' ? config.yearlyPricePkr : config.monthlyPricePkr;
-
-    if (!paymentReference || paymentReference.trim().length < 8) {
+    const ref = (paymentReference || '').trim();
+    if (!/^[A-Za-z0-9-]{8,40}$/.test(ref)) {
       throw new AppError(
-        'Valid payment transaction reference ID (minimum 8 characters) is required for fraud prevention audit.',
+        'Enter the transaction ID from your payment receipt (8-40 letters/numbers).',
         400,
         'PAYMENT_REFERENCE_REQUIRED'
       );
     }
 
-    // Check idempotency (prevent duplicate TID usage)
-    const [existingSub] = await db
-      .select()
-      .from(subscriptions)
-      .where(eq(subscriptions.paymentReference, paymentReference.trim()));
-
-    if (existingSub) {
-      throw new AppError('This payment transaction reference ID has already been submitted or utilized.', 409, 'DUPLICATE_PAYMENT_REFERENCE');
+    const [dup] = await db.select().from(subscriptions).where(eq(subscriptions.paymentReference, ref));
+    if (dup) {
+      throw new AppError('This transaction ID has already been submitted.', 409, 'DUPLICATE_PAYMENT_REFERENCE');
     }
 
-    const durationDays = billingCycle === 'yearly' ? 365 : 30;
-    const startsAt = new Date();
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + durationDays);
+    const [open] = await db
+      .select()
+      .from(subscriptions)
+      .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, 'pending_verification')));
+    if (open) {
+      throw new AppError('You already have a payment waiting for verification.', 409, 'PENDING_EXISTS');
+    }
 
-    let quota = 250;
-    if (plan === 'diamond') quota = 500;
-    if (plan === 'unlimited') quota = 999999;
+    const amountPkr = billingCycle === 'yearly' ? config.yearlyPricePkr : config.monthlyPricePkr;
+    const now = new Date();
 
-    // Record as 'pending_verification' — NO quota unlocked until bank webhook confirms
-    const [subRecord] = await db
+    // Real start/expiry are set when the payment is approved.
+    const [rec] = await db
       .insert(subscriptions)
       .values({
-        userId: userId || null,
+        userId,
         clientIp: clientIp || null,
         plan,
         billingCycle,
         amountPkr,
-        scansQuota: quota,
-        paymentMethod: paymentMethod || 'gateway',
-        paymentReference: paymentReference.trim(),
+        scansQuota: planQuota(plan),
+        paymentMethod,
+        paymentReference: ref,
         status: 'pending_verification',
-        startsAt,
-        expiresAt,
+        startsAt: now,
+        expiresAt: now,
       })
       .returning();
 
     return {
-      success: true,
       status: 'pending_verification',
-      subscriptionId: subRecord.id,
-      message: 'Payment reference submitted. Subscription is pending automated bank gateway webhook verification. Quota will unlock upon bank confirmation.',
+      subscriptionId: rec.id,
       plan,
       billingCycle,
       amountPkr,
+      message: 'Payment submitted. Your plan activates once the payment is verified.',
     };
   }
 
-  /**
-   * Bank Gateway Webhook Reconciliation:
-   * Called securely via HMAC-SHA256 signed webhook from JazzCash/EasyPaisa/Stripe server.
-   */
+  /** Step 2 — verified payment: activate plan, set real dates, grant quota. Idempotent. */
+  public async approveSubscription(subscriptionId: number) {
+    const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.id, subscriptionId));
+    if (!sub) throw new AppError('Subscription not found.', 404, 'SUBSCRIPTION_NOT_FOUND');
+    if (sub.status === 'active') return { success: true, message: 'Already active.' };
+    if (sub.status !== 'pending_verification') {
+      throw new AppError(`Cannot approve a ${sub.status} subscription.`, 409, 'INVALID_STATE');
+    }
+
+    const startsAt = new Date();
+    const expiresAt = new Date(startsAt);
+    expiresAt.setDate(expiresAt.getDate() + (sub.billingCycle === 'yearly' ? 365 : 30));
+
+    await db.update(subscriptions).set({ status: 'active', startsAt, expiresAt }).where(eq(subscriptions.id, sub.id));
+
+    if (sub.userId) {
+      await db
+        .update(users)
+        .set({
+          plan: sub.plan,
+          billingCycle: sub.billingCycle,
+          subscriptionStartedAt: startsAt,
+          subscriptionExpiresAt: expiresAt,
+          monthlyScanQuota: sub.scansQuota,
+          monthlyScansUsed: 0,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.uid, sub.userId));
+    }
+    return { success: true, message: 'Payment verified. Subscription activated.' };
+  }
+
+  public async rejectSubscription(subscriptionId: number) {
+    const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.id, subscriptionId));
+    if (!sub) throw new AppError('Subscription not found.', 404, 'SUBSCRIPTION_NOT_FOUND');
+    if (sub.status !== 'pending_verification') {
+      throw new AppError(`Cannot reject a ${sub.status} subscription.`, 409, 'INVALID_STATE');
+    }
+    await db.update(subscriptions).set({ status: 'failed' }).where(eq(subscriptions.id, sub.id));
+    return { success: true, message: 'Payment rejected.' };
+  }
+
+  public async listPending() {
+    return db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.status, 'pending_verification'))
+      .orderBy(desc(subscriptions.id));
+  }
+
+  /** Signed gateway callback. Requires PAYMENT_WEBHOOK_SECRET — there is no default or bypass. */
   public async handleWebhookReconciliation(payload: {
     paymentReference: string;
     status: 'success' | 'failed';
     signature: string;
   }) {
+    const secret = process.env.PAYMENT_WEBHOOK_SECRET;
+    if (!secret) throw new AppError('Webhook not configured.', 503, 'WEBHOOK_DISABLED');
+
     const { paymentReference, status, signature } = payload;
+    if (!paymentReference || !signature || (status !== 'success' && status !== 'failed')) {
+      throw new AppError('Invalid webhook payload.', 400);
+    }
 
-    const computedSig = crypto
-      .createHmac('sha256', process.env.PAYMENT_WEBHOOK_SECRET || 'fasaldost-secure-webhook-secret')
-      .update(`${paymentReference}:${status}`)
-      .digest('hex');
-
-    if (computedSig !== signature && signature !== 'BYPASS_ADMIN_WEBHOOK_SECRET') {
-      throw new AppError('Invalid webhook cryptographic signature.', 403, 'INVALID_WEBHOOK_SIGNATURE');
+    const expected = crypto.createHmac('sha256', secret).update(`${paymentReference}:${status}`).digest();
+    let given: Buffer;
+    try {
+      given = Buffer.from(String(signature), 'hex');
+    } catch {
+      given = Buffer.alloc(0);
+    }
+    if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+      throw new AppError('Invalid webhook signature.', 403, 'INVALID_WEBHOOK_SIGNATURE');
     }
 
     const [sub] = await db
       .select()
       .from(subscriptions)
       .where(eq(subscriptions.paymentReference, paymentReference.trim()));
+    if (!sub) throw new AppError('Subscription transaction reference not found.', 404, 'SUBSCRIPTION_NOT_FOUND');
 
-    if (!sub) {
-      throw new AppError('Subscription transaction reference not found.', 404, 'SUBSCRIPTION_NOT_FOUND');
-    }
-
-    if (status === 'success') {
-      // Activate subscription and grant quotas in PostgreSQL
-      await db
-        .update(subscriptions)
-        .set({ status: 'active' })
-        .where(eq(subscriptions.id, sub.id));
-
-      if (sub.userId) {
-        await db
-          .update(users)
-          .set({
-            plan: sub.plan,
-            billingCycle: sub.billingCycle,
-            subscriptionExpiresAt: sub.expiresAt,
-            monthlyScanQuota: sub.scansQuota,
-            monthlyScansUsed: 0,
-            subscriptionStartedAt: sub.startsAt,
-            updatedAt: new Date(),
-          })
-          .where(eq(users.uid, sub.userId));
-      }
-
-      return { success: true, message: 'Payment verified by bank webhook. Subscription activated and quota unlocked.' };
-    } else {
-      await db
-        .update(subscriptions)
-        .set({ status: 'failed' })
-        .where(eq(subscriptions.id, sub.id));
-
-      return { success: false, message: 'Payment rejected by bank gateway.' };
-    }
+    return status === 'success' ? this.approveSubscription(sub.id) : this.rejectSubscription(sub.id);
   }
 }
 

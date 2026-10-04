@@ -11,7 +11,6 @@ import { authRouter } from './modules/auth';
 import { diagnosticsRouter } from './modules/diagnostics';
 import { marketplaceRouter } from './modules/marketplace';
 import { farmerRouter } from './modules/farmers';
-import { advisoryRouter } from './modules/advisory';
 import { storageRouter } from './modules/storage/storage.routes';
 import { searchRouter } from './modules/search/search.routes';
 import { subscriptionsRouter } from './modules/subscriptions/subscriptions.routes';
@@ -125,7 +124,7 @@ export function createApp(): Express {
       search: 'Dedicated Inverted Index Full-Text Engine',
       telemetry: 'OpenTelemetry + Sentry',
       contract: 'REST + OpenAPI 3.1.0',
-      modules: ['auth', 'diagnostics', 'marketplace', 'farmers', 'advisory', 'storage', 'search'],
+      modules: ['auth', 'diagnostics', 'marketplace', 'farmers', 'storage', 'search'],
       timestamp: new Date().toISOString(),
     });
   });
@@ -174,7 +173,6 @@ export function createApp(): Express {
   app.use('/api/diagnostics', diagnosticsRouter);
   app.use('/api/marketplace', marketplaceRouter);
   app.use('/api/farmers', farmerRouter);
-  app.use('/api/advisory', advisoryRouter);
   app.use('/api/storage', storageRouter);
   app.use('/api/search', searchRouter);
   app.use('/api/subscriptions', subscriptionsRouter);

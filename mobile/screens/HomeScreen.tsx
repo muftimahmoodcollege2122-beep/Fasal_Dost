@@ -188,14 +188,6 @@ export function HomeScreen({
           <Text style={styles.serviceSub}>Free 7 Scans</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.serviceCard} onPress={() => onNavigate('Advisory')}>
-          <View style={[styles.serviceIconBox, { backgroundColor: '#ecfdf5' }]}>
-            <CloudRain size={18} color="#059669" />
-          </View>
-          <Text style={styles.serviceTitle}>{isUrdu ? 'زرعی مشورے' : 'Crop Advisory'}</Text>
-          <Text style={styles.serviceSub}>{isUrdu ? 'موسم و کھاد' : 'Weather & Soil'}</Text>
-        </TouchableOpacity>
-
         <TouchableOpacity style={styles.serviceCard} onPress={() => onNavigate('FarmerProfile')}>
           <View style={[styles.serviceIconBox, { backgroundColor: '#f1f5f9' }]}>
             <User size={18} color="#0f172a" />

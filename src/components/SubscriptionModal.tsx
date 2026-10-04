@@ -36,12 +36,15 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
   const [selectedPlan, setSelectedPlan] = useState<'gold' | 'diamond' | 'unlimited'>('gold');
-  const [paymentMethod, setPaymentMethod] = useState<'easypaisa' | 'jazzcash' | 'bank' | 'card'>('easypaisa');
+  const [paymentMethod, setPaymentMethod] = useState<'easypaisa' | 'jazzcash' | 'bank'>('easypaisa');
   const [phoneNum, setPhoneNum] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  const [accounts, setAccounts] = useState<Record<string, { title: string; account: string }>>({});
+
   useEffect(() => {
+    apiClient.subscriptions.getPlans().then((r) => r?.paymentAccounts && setAccounts(r.paymentAccounts)).catch(() => {});
     if (isOpen) {
       setSuccess(false);
     }
@@ -111,10 +114,11 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
       if (res && res.success) {
         setSuccess(true);
-        if (onSubscribed) onSubscribed(selectedPlan);
         setTimeout(() => {
           onClose();
-        }, 1800);
+        }, 2500);
+      } else {
+        alert(res?.message || 'Payment submission failed.');
       }
     } catch (err: any) {
       alert(err.message || 'Payment authentication failed. Please check your transaction ID.');
@@ -256,12 +260,11 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
           <label className="block text-xs font-bold text-slate-800 mb-2">
             {isUrdu ? 'ادائیگی کا طریقہ منتخب کریں' : 'Select Payment Method'}
           </label>
-          <div className="grid grid-cols-4 gap-2 mb-3">
+          <div className="grid grid-cols-3 gap-2 mb-3">
             {[
               { id: 'easypaisa', name: 'EasyPaisa', icon: Smartphone },
               { id: 'jazzcash', name: 'JazzCash', icon: Smartphone },
               { id: 'bank', name: 'Bank Transfer', icon: Building2 },
-              { id: 'card', name: 'Debit Card', icon: CreditCard },
             ].map((m) => {
               const Icon = m.icon;
               const active = paymentMethod === m.id;
@@ -283,6 +286,11 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             })}
           </div>
 
+          <p className="text-[11px] text-slate-600 mb-2">
+            {accounts[paymentMethod]
+              ? `${isUrdu ? 'رقم یہاں بھیجیں' : 'Send payment to'}: ${accounts[paymentMethod].title} — ${accounts[paymentMethod].account}`
+              : (isUrdu ? 'یہ طریقہ فی الحال دستیاب نہیں' : 'This payment method is not available right now')}
+          </p>
           <input
             type="text"
             value={phoneNum}
@@ -290,7 +298,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             placeholder={
               paymentMethod === 'bank'
                 ? (isUrdu ? 'بینک ٹرانزیکشن حوالہ ID' : 'Bank Reference ID / Account')
-                : (isUrdu ? 'موبائل نمبر (مثلا 03001234567)' : 'Mobile Account Number (03XX-XXXXXXX)')
+                : (isUrdu ? 'ٹرانزیکشن ID (رسید سے)' : 'Transaction ID (from your receipt)')
             }
             className="w-full p-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-900"
           />
@@ -300,7 +308,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         {success ? (
           <div className="p-3.5 rounded-2xl bg-slate-900 text-white text-center font-extrabold text-sm flex items-center justify-center gap-2">
             <Check className="w-5 h-5" />
-            <span>{isUrdu ? 'سبسکرپشن کامیابی سے فعال ہو گئی!' : 'Subscription Activated Successfully!'}</span>
+            <span>{isUrdu ? 'ادائیگی جمع ہو گئی — تصدیق کے بعد فعال ہوگا' : 'Payment submitted — activates after verification'}</span>
           </div>
         ) : (
           <button

@@ -28,7 +28,6 @@ import { SubscriptionScreen } from './screens/SubscriptionScreen';
 import { CreateListingScreen } from './screens/CreateListingScreen';
 import { ListingDetailScreen } from './screens/ListingDetailScreen';
 import { SellerVerificationScreen } from './screens/SellerVerificationScreen';
-import { AdvisoryScreen } from './screens/AdvisoryScreen';
 
 export interface NavigationState {
   screen: string;
@@ -333,13 +332,6 @@ export default function App() {
 
           {currentNav.screen === 'SellerVerification' && (
             <SellerVerificationScreen
-              lang={lang as any}
-              onBack={goBack}
-            />
-          )}
-
-          {currentNav.screen === 'Advisory' && (
-            <AdvisoryScreen
               lang={lang as any}
               onBack={goBack}
             />

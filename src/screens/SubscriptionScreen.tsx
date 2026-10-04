@@ -28,15 +28,17 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
 }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly'); // Default to 29% OFF
   const [selectedPlan, setSelectedPlan] = useState<'gold' | 'diamond' | 'unlimited'>('gold');
-  const [paymentMethod, setPaymentMethod] = useState<'easypaisa' | 'jazzcash' | 'bank' | 'card'>('easypaisa');
+  const [paymentMethod, setPaymentMethod] = useState<'easypaisa' | 'jazzcash' | 'bank'>('easypaisa');
   const [phoneNum, setPhoneNum] = useState('');
   const [currentSub, setCurrentSub] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [accounts, setAccounts] = useState<Record<string, { title: string; account: string }>>({});
 
   const isUrdu = lang === 'ur';
 
   useEffect(() => {
+    apiClient.subscriptions.getPlans().then((r) => r?.paymentAccounts && setAccounts(r.paymentAccounts)).catch(() => {});
     apiClient.subscriptions.getCurrent().then((res) => {
       if (res && res.subscription) {
         setCurrentSub(res.subscription);
@@ -104,7 +106,9 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
 
       if (res && res.success) {
         setSuccess(true);
-        setCurrentSub(res.subscription);
+        apiClient.subscriptions.getCurrent().then((r) => r?.subscription && setCurrentSub(r.subscription));
+      } else {
+        alert(res?.message || 'Payment submission failed.');
       }
     } catch (err: any) {
       alert(err.message || 'Payment authentication failed. Please check your transaction ID.');
@@ -255,12 +259,11 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
           {isUrdu ? 'پاکستان مقامی ادائیگی کے طریقے' : 'Pakistan Payment Options'}
         </label>
 
-        <div className="grid grid-cols-4 gap-2 mb-3">
+        <div className="grid grid-cols-3 gap-2 mb-3">
           {[
             { id: 'easypaisa', name: 'EasyPaisa', icon: Smartphone },
             { id: 'jazzcash', name: 'JazzCash', icon: Smartphone },
             { id: 'bank', name: 'Bank Transfer', icon: Building2 },
-            { id: 'card', name: 'Debit Card', icon: CreditCard },
           ].map((m) => {
             const Icon = m.icon;
             const active = paymentMethod === m.id;
@@ -282,6 +285,12 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
           })}
         </div>
 
+        <p className="text-[11px] text-slate-600 mb-2">
+          {accounts[paymentMethod]
+            ? `${isUrdu ? 'رقم یہاں بھیجیں' : 'Send payment to'}: ${accounts[paymentMethod].title} — ${accounts[paymentMethod].account}`
+            : (isUrdu ? 'یہ طریقہ فی الحال دستیاب نہیں' : 'This payment method is not available right now')}
+        </p>
+
         <input
           type="text"
           value={phoneNum}
@@ -289,7 +298,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
           placeholder={
             paymentMethod === 'bank'
               ? (isUrdu ? 'بینک ٹرانزیکشن ریفرنس ID' : 'Bank Transfer Reference ID')
-              : (isUrdu ? 'موبائل والٹ نمبر (03XXXXXXXXX)' : 'Mobile Wallet Number (03XX-XXXXXXX)')
+              : (isUrdu ? 'ٹرانزیکشن ID (رسید سے)' : 'Transaction ID (from your receipt)')
           }
           className="w-full p-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-900"
         />
@@ -299,7 +308,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
       {success ? (
         <div className="p-4 rounded-2xl bg-emerald-600 text-white text-center font-extrabold text-sm flex items-center justify-center gap-2">
           <Check className="w-5 h-5" />
-          <span>{isUrdu ? 'پیکج کامیابی سے فعال ہو گیا!' : 'Subscription Activated Successfully!'}</span>
+          <span>{isUrdu ? 'ادائیگی جمع ہو گئی — تصدیق کے بعد پیکج فعال ہوگا' : 'Payment submitted — plan activates after verification'}</span>
         </div>
       ) : (
         <button

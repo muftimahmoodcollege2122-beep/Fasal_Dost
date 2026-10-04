@@ -3,7 +3,8 @@
 // Typed API Client for FasalDost Mobile Application
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const API_BASE_URL = 'https://ais-dev-hexsq6a75nx3v7mukdbtq4-171051146732.asia-southeast1.run.app';
+export const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || 'https://ais-dev-hexsq6a75nx3v7mukdbtq4-171051146732.asia-southeast1.run.app';
 
 export interface ApiResponse<T> {
   success: boolean;
