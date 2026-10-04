@@ -29,6 +29,13 @@ function lanIp() {
   return null;
 }
 
+// A cache file left half-written by an earlier crashed run makes Expo log "Unexpected end of JSON input".
+const fs = require('fs');
+const path = require('path');
+for (const d of ['native-modules-cache', 'versions-cache']) {
+  try { fs.rmSync(path.join(os.homedir(), '.expo', d), { recursive: true, force: true }); } catch {}
+}
+
 const ip = lanIp();
 if (!ip) {
   console.log('\nCould not detect the Wi-Fi IP automatically (are you connected to Wi-Fi / hotspot?).');
@@ -43,6 +50,6 @@ console.log('Scan with Expo Go (SDK 57) on a device on the same Wi-Fi, or choose
 
 const child = spawn('npx', ['expo', 'start', '--lan', '--port', PORT, '-c'], {
   stdio: 'inherit',
-  env: { ...process.env, CI: '1', EXPO_NO_TELEMETRY: '1', REACT_NATIVE_PACKAGER_HOSTNAME: ip },
+  env: { ...process.env, CI: '1', EXPO_NO_TELEMETRY: '1', EXPO_NO_DEPENDENCY_VALIDATION: '1', REACT_NATIVE_PACKAGER_HOSTNAME: ip },
 });
 child.on('exit', (c) => process.exit(c ?? 0));
