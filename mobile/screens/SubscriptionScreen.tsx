@@ -1,102 +1,262 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// mobile/screens/SubscriptionScreen.tsx
-// React Native Subscription & Payment Screen matching exact web UI
+// src/screens/SubscriptionScreen.tsx
+// Subscription & Packages Screen for FasalDost
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
-import { ArrowLeft, Crown, Smartphone, Building2, CreditCard, Check, Sparkles } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { Box, Btn, Inp, T } from '../ui/web';
+import {
+  ArrowLeft,
+  Crown,
+  Zap,
+  Check,
+  Smartphone,
+  Building2,
+  CreditCard,
+  Sparkles,
+} from '../ui/icons';
+import { Language } from '../utils/i18n';
+import { apiClient } from '../shared/apiClient';
 
-const API_BASE_URL = 'https://ais-dev-hexsq6a75nx3v7mukdbtq4-171051146732.asia-southeast1.run.app';
+interface SubscriptionScreenProps {
+  lang: Language;
+  onBack: () => void;
+}
 
-export function SubscriptionScreen({ lang, onBack }: { lang: 'ur' | 'en'; onBack: () => void }) {
-  const isUrdu = lang === 'ur';
+export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
+  lang,
+  onBack,
+}) => {
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly'); // Default to 29% OFF
   const [selectedPlan, setSelectedPlan] = useState<'gold' | 'diamond' | 'unlimited'>('gold');
   const [paymentMethod, setPaymentMethod] = useState<'easypaisa' | 'jazzcash' | 'bank' | 'card'>('easypaisa');
-  const [refId, setRefId] = useState('');
+  const [phoneNum, setPhoneNum] = useState('');
+  const [currentSub, setCurrentSub] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const isUrdu = lang === 'ur';
+
+  useEffect(() => {
+    apiClient.subscriptions.getCurrent().then((res) => {
+      if (res && res.subscription) {
+        setCurrentSub(res.subscription);
+      }
+    });
+  }, []);
+
+  const plans = {
+    gold: {
+      name: isUrdu ? 'گولڈ پیکج' : 'Gold Plan',
+      scans: isUrdu ? '250 اسکینز / ماہانہ' : '250 scans / month',
+      monthlyPrice: 299,
+      yearlyPrice: 2547,
+      savings: 1041,
+      popular: true,
+      badge: isUrdu ? 'سب سے مقبول' : 'Most Popular',
+      features: isUrdu
+        ? ['ماہانہ 250 کروپ اسکینز', 'ترجیحی پروسیسنگ', 'ایچ ڈی آڈیو وائس نیریشن', 'مکمل تشخیص کی ہسٹری']
+        : ['250 crop scans per month', 'Priority AI processing', 'HD studio voice reader', 'Permanent scan history'],
+    },
+    diamond: {
+      name: isUrdu ? 'ڈائمنڈ پیکج' : 'Diamond Plan',
+      scans: isUrdu ? '500 اسکینز / ماہانہ' : '500 scans / month',
+      monthlyPrice: 599,
+      yearlyPrice: 5103,
+      savings: 2085,
+      popular: false,
+      badge: '',
+      features: isUrdu
+        ? ['ماہانہ 500 کروپ اسکینز', 'وی آئی پی فلیش پروسیسنگ', 'تصدیق شدہ کسان منڈی بیج', 'فصلوں کی ترجیحی لسٹنگ']
+        : ['500 crop scans per month', 'VIP fast-track processing', 'Verified Farmer badge', 'Priority marketplace listings'],
+    },
+    unlimited: {
+      name: isUrdu ? 'لامحدود پریمیم' : 'Unlimited Enterprise',
+      scans: isUrdu ? 'لامحدود اسکینز' : 'Unlimited scans',
+      monthlyPrice: 2500,
+      yearlyPrice: 21300,
+      savings: 8700,
+      popular: false,
+      badge: '',
+      features: isUrdu
+        ? ['لامحدود کروپ اسکینز', 'زرعی ماہرین کی برائے راست سپورٹ', 'ملٹی فارم مینجمنٹ', '24/7 ہیلپ لائن']
+        : ['Unlimited crop scans', 'Direct agronomist support', 'Multi-farm management', '24/7 priority hotline'],
+    },
+  };
 
   const handleSubscribe = async () => {
-    if (!refId || refId.trim().length < 6) {
-      Alert.alert(
-        isUrdu ? 'ضروری معلومات' : 'Verification Required',
-        isUrdu ? 'براہ کرم ادائیگی کی تصدیق کے لیے درست ٹرانزیکشن حوالہ ID (کم از کم 6 ہندسے) درج کریں۔' : 'Please enter a valid Transaction Reference ID (min 6 chars) to authenticate payment.'
+    if (!phoneNum || phoneNum.trim().length < 6) {
+      alert(
+        isUrdu
+          ? 'براہ کرم ادائیگی کی تصدیق کے لیے درست ٹرانزیکشن حوالہ ID یا موبائل اکاؤنٹ نمبر (کم از کم 6 ہندسے) درج کریں۔'
+          : 'Please enter a valid Transaction Reference ID or Mobile Account Number (minimum 6 characters) to authenticate payment.'
       );
       return;
     }
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/subscriptions/subscribe`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan: selectedPlan,
-          billingCycle: 'monthly',
-          paymentMethod,
-          paymentReference: refId.trim(),
-        }),
+      const res = await apiClient.subscriptions.subscribe({
+        plan: selectedPlan,
+        billingCycle,
+        paymentMethod,
+        paymentReference: phoneNum.trim(),
       });
-      const data = await response.json();
-      if (data.success) {
-        Alert.alert(
-          isUrdu ? 'سبسکرپشن فعال ہو گئی!' : 'Subscription Activated!',
-          isUrdu ? 'آپ کا پلان کامیابی سے فعال کر دیا گیا ہے۔' : 'Your subscription plan has been authenticated & activated successfully.'
-        );
-        onBack();
-      } else {
-        Alert.alert('Payment Error', data.error?.message || 'Payment authentication failed.');
+
+      if (res && res.success) {
+        setSuccess(true);
+        setCurrentSub(res.subscription);
       }
-    } catch {
-      Alert.alert('Network Error', 'Could not connect to payment gateway.');
+    } catch (err: any) {
+      alert(err.message || 'Payment authentication failed. Please check your transaction ID.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-        <ArrowLeft size={20} color="#0f172a" />
-        <Text style={styles.backText}>{isUrdu ? 'واپس' : 'Back'}</Text>
-      </TouchableOpacity>
+    <Box className="flex flex-col min-h-full pb-10">
+      {/* Header */}
+      <Box className="flex items-center justify-between py-2 mb-4 border-b border-slate-100 pb-3">
+        <Btn
+          onClick={onBack}
+          className="w-10 h-10 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 transition active:scale-95 shadow-2xs cursor-pointer"
+        >
+          <ArrowLeft className="w-5 h-5 rtl:rotate-180" />
+        </Btn>
 
-      <View style={styles.headerRow}>
-        <Crown size={22} color="#0f172a" />
-        <Text style={styles.title}>{isUrdu ? 'فضل دوست پریمیم پیکجز' : 'Subscription Plans'}</Text>
-      </View>
-      <Text style={styles.subtitle}>{isUrdu ? 'لامحدود اسکینز اور ترجیحی اے آئی سروسز' : 'Unlock unlimited crop scans & priority AI features'}</Text>
+        <T className="text-base font-bold text-slate-900 inline-flex items-center gap-2">
+          <Crown className="w-5 h-5 text-slate-900" />
+          <T>{isUrdu ? 'فضل دوست پیکجز' : 'Subscription Plans'}</T>
+        </T>
 
-      <TouchableOpacity
-        style={[styles.planCard, selectedPlan === 'gold' && styles.planCardActive]}
-        onPress={() => setSelectedPlan('gold')}
-      >
-        <View style={styles.planHeader}>
-          <Text style={[styles.planTitle, selectedPlan === 'gold' && styles.textWhite]}>
-            {isUrdu ? 'گولڈ پلان (250 اسکینز/ماہ)' : 'Gold Plan (250 scans/mo)'}
-          </Text>
-          {selectedPlan === 'gold' && <Check size={18} color="#10b981" />}
-        </View>
-        <Text style={[styles.planPrice, selectedPlan === 'gold' && styles.textWhite]}>PKR 299 / {isUrdu ? 'ماہ' : 'mo'}</Text>
-      </TouchableOpacity>
+        <Box className="w-10" />
+      </Box>
 
-      <TouchableOpacity
-        style={[styles.planCard, selectedPlan === 'diamond' && styles.planCardActive]}
-        onPress={() => setSelectedPlan('diamond')}
-      >
-        <View style={styles.planHeader}>
-          <Text style={[styles.planTitle, selectedPlan === 'diamond' && styles.textWhite]}>
-            {isUrdu ? 'ڈائمنڈ پلان (500 اسکینز/ماہ)' : 'Diamond Plan (500 scans/mo)'}
-          </Text>
-          {selectedPlan === 'diamond' && <Check size={18} color="#10b981" />}
-        </View>
-        <Text style={[styles.planPrice, selectedPlan === 'diamond' && styles.textWhite]}>PKR 599 / {isUrdu ? 'ماہ' : 'mo'}</Text>
-      </TouchableOpacity>
+      {/* Active Subscription Banner */}
+      {currentSub && currentSub.isPaid && (
+        <Box className="p-4 rounded-2xl bg-slate-900 text-white mb-5 shadow-sm border border-slate-800">
+          <Box className="flex items-center justify-between mb-2">
+            <Box className="inline-flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <T className="text-xs font-extrabold uppercase text-emerald-400">
+                {isUrdu ? 'فعال پیکج' : 'Active Subscription'}
+              </T>
+            </Box>
+            <T className="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-black text-[10px] uppercase">
+              {currentSub.plan}
+            </T>
+          </Box>
 
-      <div style={{}} />
-      <View style={styles.payBox}>
-        <Text style={styles.payLabel}>{isUrdu ? 'ادائیگی کا طریقہ منتخب کریں' : 'Select Payment Gateway'}</Text>
-        <View style={styles.gatewayGrid}>
+          <Box className="text-sm font-bold text-white mb-1">
+            {isUrdu ? 'اسکینز کوٹا:' : 'Scan Quota:'} {currentSub.monthlyUsed} / {currentSub.monthlyQuota}
+          </Box>
+
+          {currentSub.expiresAt && (
+            <T className="text-[11px] text-slate-400">
+              {isUrdu ? 'تجدید کی تاریخ:' : 'Expires On:'} {new Date(currentSub.expiresAt).toLocaleDateString()}
+            </T>
+          )}
+        </Box>
+      )}
+
+      {/* Billing Cycle Toggle */}
+      <Box className="flex items-center justify-center gap-2 p-1.5 bg-slate-100 rounded-2xl mb-5 border border-slate-200">
+        <Btn
+          type="button"
+          onClick={() => setBillingCycle('monthly')}
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition ${
+            billingCycle === 'monthly'
+              ? 'bg-white text-slate-900 shadow-xs'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          {isUrdu ? 'ماہانہ بلنگ' : 'Monthly Billing'}
+        </Btn>
+        <Btn
+          type="button"
+          onClick={() => setBillingCycle('yearly')}
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+            billingCycle === 'yearly'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <T>{isUrdu ? 'سالانہ پلان' : 'Yearly Plan'}</T>
+          <T className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[10px] font-black uppercase">
+            29% OFF
+          </T>
+        </Btn>
+      </Box>
+
+      {/* Plans Grid */}
+      <Box className="space-y-4 mb-6">
+        {(Object.keys(plans) as Array<keyof typeof plans>).map((planKey) => {
+          const p = plans[planKey];
+          const isSelected = selectedPlan === planKey;
+          const price = billingCycle === 'yearly' ? p.yearlyPrice : p.monthlyPrice;
+
+          return (
+            <Box
+              key={planKey}
+              onClick={() => setSelectedPlan(planKey)}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer relative ${
+                isSelected
+                  ? 'border-slate-900 bg-slate-900 text-white shadow-md'
+                  : 'border-slate-200 bg-white hover:border-slate-300 text-slate-800'
+              }`}
+            >
+              {p.popular && (
+                <T className="absolute top-4 right-4 px-2.5 py-0.5 rounded-full bg-slate-900 text-white font-extrabold text-[10px] border border-slate-700">
+                  {p.badge}
+                </T>
+              )}
+
+              <Box className="flex items-center justify-between mb-2">
+                <T className={`font-extrabold text-base ${isSelected ? 'text-white' : 'text-slate-900'}`}>
+                  {p.name}
+                </T>
+              </Box>
+
+              <Box className="mb-3">
+                <T className={`text-2xl font-black ${isSelected ? 'text-white' : 'text-slate-900'}`}>
+                  PKR {price.toLocaleString()}
+                </T>
+                <T className={`text-xs ml-1 ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
+                  /{billingCycle === 'yearly' ? (isUrdu ? 'سال' : 'year') : (isUrdu ? 'ماہ' : 'month')}
+                </T>
+
+                {billingCycle === 'yearly' && (
+                  <T className={`text-xs font-bold block mt-1 ${isSelected ? 'text-emerald-300' : 'text-emerald-600'}`}>
+                    {isUrdu ? `سالانہ بچت: PKR ${p.savings}` : `Yearly Savings: PKR ${p.savings}`}
+                  </T>
+                )}
+              </Box>
+
+              <Box className={`text-xs font-bold mb-3 pb-2 border-b ${isSelected ? 'border-slate-800 text-slate-200' : 'border-slate-200 text-slate-700'}`}>
+                {p.scans}
+              </Box>
+
+              <Box className="space-y-2 text-xs">
+                {p.features.map((feat, idx) => (
+                  <Box key={idx} className="flex items-center gap-2">
+                    <Check className={`w-4 h-4 shrink-0 ${isSelected ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                    <T className={isSelected ? 'text-slate-200' : 'text-slate-600'}>{feat}</T>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          );
+        })}
+      </Box>
+
+      {/* Local Payment Selection */}
+      <Box className="p-4 rounded-2xl bg-slate-50 border border-slate-200 mb-6">
+        <T className="block text-xs font-bold text-slate-700 mb-2">
+          {isUrdu ? 'پاکستان مقامی ادائیگی کے طریقے' : 'Pakistan Payment Options'}
+        </T>
+
+        <Box className="grid grid-cols-4 gap-2 mb-3">
           {[
             { id: 'easypaisa', name: 'EasyPaisa', icon: Smartphone },
             { id: 'jazzcash', name: 'JazzCash', icon: Smartphone },
@@ -106,57 +266,62 @@ export function SubscriptionScreen({ lang, onBack }: { lang: 'ur' | 'en'; onBack
             const Icon = m.icon;
             const active = paymentMethod === m.id;
             return (
-              <TouchableOpacity
+              <Btn
                 key={m.id}
-                style={[styles.gatewayBtn, active && styles.gatewayBtnActive]}
-                onPress={() => setPaymentMethod(m.id as any)}
+                type="button"
+                onClick={() => setPaymentMethod(m.id as any)}
+                className={`p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1 cursor-pointer ${
+                  active
+                    ? 'border-slate-900 bg-white text-slate-900 shadow-2xs font-extrabold'
+                    : 'border-slate-200 bg-white/60 text-slate-600 hover:bg-white'
+                }`}
               >
-                <Icon size={16} color={active ? '#0f172a' : '#64748b'} />
-                <Text style={[styles.gatewayText, active && styles.gatewayTextActive]}>{m.name}</Text>
-              </TouchableOpacity>
+                <Icon className="w-4 h-4" />
+                <T className="text-[10px]">{m.name}</T>
+              </Btn>
             );
           })}
-        </View>
+        </Box>
 
-        <Text style={styles.payLabel}>{isUrdu ? 'ٹرانزیکشن حوالہ ID (کم از کم 6 ہندسے)' : 'Transaction Reference ID (min 6 chars)'}</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. TID-98273612"
-          value={refId}
-          onChangeText={setRefId}
+        <Inp
+          type="text"
+          value={phoneNum}
+          onChange={(e) => setPhoneNum(e.target.value)}
+          placeholder={
+            paymentMethod === 'bank'
+              ? (isUrdu ? 'بینک ٹرانزیکشن ریفرنس ID' : 'Bank Transfer Reference ID')
+              : (isUrdu ? 'موبائل والٹ نمبر (03XXXXXXXXX)' : 'Mobile Wallet Number (03XX-XXXXXXX)')
+          }
+          className="w-full p-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-900"
         />
+      </Box>
 
-        <TouchableOpacity style={styles.subBtn} onPress={handleSubscribe} disabled={loading}>
-          <Sparkles size={16} color="#ffffff" style={{ marginRight: 6 }} />
-          <Text style={styles.subBtnText}>{loading ? (isUrdu ? 'پروسیسنگ...' : 'Verifying Payment...') : (isUrdu ? 'ادائیگی کی تصدیق کریں اور سبسکرائب کریں' : 'Verify Payment & Subscribe')}</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+      {/* Subscribe CTA */}
+      {success ? (
+        <Box className="p-4 rounded-2xl bg-emerald-600 text-white text-center font-extrabold text-sm flex items-center justify-center gap-2">
+          <Check className="w-5 h-5" />
+          <T>{isUrdu ? 'پیکج کامیابی سے فعال ہو گیا!' : 'Subscription Activated Successfully!'}</T>
+        </Box>
+      ) : (
+        <Btn
+          onClick={handleSubscribe}
+          disabled={loading}
+          className="w-full py-4 px-6 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-base shadow-sm transition active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+        >
+          {loading ? (
+            <T>{isUrdu ? 'پروسیسنگ...' : 'Processing Payment...'}</T>
+          ) : (
+            <>
+              <Sparkles className="w-5 h-5 text-emerald-400" />
+              <T>
+                {isUrdu
+                  ? `PKR ${plans[selectedPlan][billingCycle === 'yearly' ? 'yearlyPrice' : 'monthlyPrice'].toLocaleString()} ادا کریں`
+                  : `Subscribe for PKR ${plans[selectedPlan][billingCycle === 'yearly' ? 'yearlyPrice' : 'monthlyPrice'].toLocaleString()}`}
+              </T>
+            </>
+          )}
+        </Btn>
+      )}
+    </Box>
   );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
-  content: { padding: 16, paddingBottom: 40 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 },
-  backText: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  title: { fontSize: 20, fontWeight: '900', color: '#0f172a' },
-  subtitle: { fontSize: 12, color: '#64748b', marginBottom: 20 },
-  planCard: { backgroundColor: '#ffffff', borderRadius: 20, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
-  planCardActive: { backgroundColor: '#0f172a', borderColor: '#0f172a' },
-  planHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  planTitle: { fontSize: 14, fontWeight: '800', color: '#0f172a' },
-  planPrice: { fontSize: 18, fontWeight: '900', color: '#0f172a' },
-  textWhite: { color: '#ffffff' },
-  payBox: { backgroundColor: '#ffffff', borderRadius: 24, padding: 20, marginTop: 12, borderWidth: 1, borderColor: '#e2e8f0' },
-  payLabel: { fontSize: 12, fontWeight: '800', color: '#0f172a', marginBottom: 10 },
-  gatewayGrid: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  gatewayBtn: { flex: 1, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  gatewayBtnActive: { backgroundColor: '#ffffff', borderColor: '#0f172a', borderWidth: 2 },
-  gatewayText: { fontSize: 10, fontWeight: '700', color: '#64748b' },
-  gatewayTextActive: { color: '#0f172a' },
-  input: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 14, paddingHorizontal: 14, height: 48, fontSize: 14, marginBottom: 16, color: '#0f172a' },
-  subBtn: { backgroundColor: '#0f172a', paddingVertical: 16, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
-  subBtnText: { fontSize: 14, fontWeight: '900', color: '#ffffff' },
-});
+};

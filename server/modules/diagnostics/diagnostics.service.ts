@@ -296,6 +296,25 @@ function cleanJson(rawText: string, cropHint = '', userLang = 'en'): DiagnosticR
   };
 }
 
+function pcmToWavBase64(pcmBase64: string, sampleRate = 24000, channels = 1, bitsPerSample = 16): string {
+  const pcm = Buffer.from(pcmBase64, 'base64');
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE((sampleRate * channels * bitsPerSample) / 8, 28);
+  header.writeUInt16LE((channels * bitsPerSample) / 8, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]).toString('base64');
+}
+
 export class DiagnosticsService implements IDiagnosticsModule {
   private getAiClient(customApiKey?: string): GoogleGenAI | null {
     const serverKey =
@@ -795,7 +814,7 @@ IMPORTANT: You MUST write the localized fields (crop_detected_localized, disease
       throw new AppError('AI Speech engine is not initialized', 500);
     }
 
-    const ttsModels = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    const ttsModels = ['gemini-2.5-flash-preview-tts', 'gemini-2.5-pro-preview-tts'];
     const chosenVoice = voiceName || (language === 'ur' || language === 'hi' ? 'Kore' : 'Aoede');
 
     for (const model of ttsModels) {
@@ -820,10 +839,15 @@ IMPORTANT: You MUST write the localized fields (crop_detected_localized, disease
 
         const part = response.candidates?.[0]?.content?.parts?.[0];
         const audioBase64 = part?.inlineData?.data;
-        const mimeType = part?.inlineData?.mimeType || 'audio/wav';
+        const rawMime = part?.inlineData?.mimeType || 'audio/L16;codec=pcm;rate=24000';
 
         if (audioBase64) {
-          return { audioBase64, mimeType };
+          // Gemini TTS returns raw 16-bit PCM; wrap it in a WAV header so browsers AND the mobile app can play it.
+          if (/wav/i.test(rawMime) && !/L16|pcm/i.test(rawMime)) {
+            return { audioBase64, mimeType: 'audio/wav' };
+          }
+          const rate = Number((rawMime.match(/rate=(\d+)/) || [])[1]) || 24000;
+          return { audioBase64: pcmToWavBase64(audioBase64, rate), mimeType: 'audio/wav' };
         }
       } catch (err) {
         console.warn(`[DiagnosticsService] Gemini Studio TTS model ${model} error:`, err);

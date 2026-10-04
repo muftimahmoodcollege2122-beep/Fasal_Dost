@@ -1,14 +1,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// mobile/App.tsx
-// FasalDost React Native & Expo Root App Navigator (All 15 Screens)
+// mobile/App.tsx — FasalDost native app. Mirrors src/App.tsx (web) screen-for-screen:
+// Splash -> Onboarding -> Auth -> Home/Scan/Result/History/FarmerProfile/Settings/
+// Subscription/Marketplace/CreateListing/SellerVerification/ListingDetail.
 // ─────────────────────────────────────────────────────────────────────────────
-
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, SafeAreaView, StatusBar, Alert } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { Audio } from 'expo-av';
-import * as Speech from 'expo-speech';
+import './global.css';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, BackHandler, Pressable, StatusBar, Alert } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import * as Updates from 'expo-updates';
+
+import { Language, isRTL } from './utils/i18n';
+import { getLang, setLang } from './utils/store';
+import { kv } from './lib/kv';
+import { auth, onAuthStateChanged, logOutUser } from './utils/firebase';
 
 import { SplashScreen } from './screens/SplashScreen';
 import { OnboardingScreen } from './screens/OnboardingScreen';
@@ -19,42 +23,74 @@ import { ResultScreen } from './screens/ResultScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
 import { FarmerProfileScreen } from './screens/FarmerProfileScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
-import { MarketplaceScreen } from './screens/MarketplaceScreen';
 import { SubscriptionScreen } from './screens/SubscriptionScreen';
+import { MarketplaceScreen } from './screens/MarketplaceScreen';
 import { CreateListingScreen } from './screens/CreateListingScreen';
 import { ListingDetailScreen } from './screens/ListingDetailScreen';
 import { SellerVerificationScreen } from './screens/SellerVerificationScreen';
-import { AdvisoryScreen } from './screens/AdvisoryScreen';
 
-const API_BASE_URL = 'https://ais-dev-hexsq6a75nx3v7mukdbtq4-171051146732.asia-southeast1.run.app';
+interface NavigationState {
+  screen: string;
+  params: any;
+}
 
-export default function App() {
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[FasalDost ErrorBoundary]', error, info);
+  }
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#f8fafc' }}>
+        <Text style={{ fontSize: 20, fontWeight: '800', color: '#0f172a', marginBottom: 8 }}>Something went wrong</Text>
+        <Text style={{ fontSize: 12, color: '#64748b', textAlign: 'center', marginBottom: 24 }}>
+          An unexpected error occurred. Please tap retry to reload the interface.
+        </Text>
+        <Pressable onPress={() => this.setState({ hasError: false })} style={{ paddingHorizontal: 32, paddingVertical: 12, borderRadius: 999, backgroundColor: '#0f172a' }}>
+          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>Retry</Text>
+        </Pressable>
+      </View>
+    );
+  }
+}
+
+function Root() {
+  const [ready, setReady] = useState(false);
+  const [lang, setLangState] = useState<Language>('en');
   const [showSplash, setShowSplash] = useState(true);
-  const [onboarded, setOnboarded] = useState(false);
-  const [screen, setScreen] = useState<
-    | 'home'
-    | 'scan'
-    | 'result'
-    | 'subscription'
-    | 'marketplace'
-    | 'history'
-    | 'settings'
-    | 'profile'
-    | 'createlisting'
-    | 'listingdetail'
-    | 'sellerverification'
-    | 'advisory'
-  >('home');
-  const [lang, setLang] = useState<'ur' | 'en'>('ur');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [scanResult, setScanResult] = useState<any>(null);
-  const [playingAudio, setPlayingAudio] = useState(false);
-  const [soundObject, setSoundObject] = useState<Audio.Sound | null>(null);
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [historyStack, setHistoryStack] = useState<NavigationState[]>([{ screen: 'Home', params: {} }]);
+
+  // Hydrate persisted state (language / onboarding / session) before first render of real UI
+  useEffect(() => {
+    (async () => {
+      await kv.hydrate();
+      setLangState((getLang() as Language) || 'en');
+      setHasCompletedOnboarding(kv.getItem('fd_onboarding_completed') === 'true');
+      setIsAuthenticated(kv.getItem('fd_auth_session') === 'true');
+      setReady(true);
+    })();
+  }, []);
 
   useEffect(() => {
-    async function checkForOtaUpdates() {
-      if (__DEV__) return;
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setIsAuthenticated(true);
+        kv.setItem('fd_auth_session', 'true');
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Over-the-air updates (release builds only)
+  useEffect(() => {
+    if (__DEV__) return;
+    (async () => {
       try {
         const update = await Updates.checkForUpdateAsync();
         if (update.isAvailable) {
@@ -64,138 +100,131 @@ export default function App() {
       } catch (e) {
         console.warn('OTA check skipped:', e);
       }
-    }
-    checkForOtaUpdates();
+    })();
   }, []);
 
-  const navigate = (newScreen: string, _params?: any) => {
-    if (newScreen === 'Settings') setScreen('settings');
-    else if (newScreen === 'Subscription') setScreen('subscription');
-    else if (newScreen === 'Marketplace') setScreen('marketplace');
-    else if (newScreen === 'History') setScreen('history');
-    else if (newScreen === 'FarmerProfile') setScreen('profile');
-    else if (newScreen === 'Scan') setScreen('scan');
-    else if (newScreen === 'CreateListing') setScreen('createlisting');
-    else if (newScreen === 'ListingDetail') setScreen('listingdetail');
-    else if (newScreen === 'SellerVerification') setScreen('sellerverification');
-    else if (newScreen === 'Advisory') setScreen('advisory');
-    else if (newScreen === 'Home') setScreen('home');
-  };
+  const currentNav = historyStack[historyStack.length - 1] || { screen: 'Home', params: {} };
 
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-      base64: true,
-    });
-    if (!result.canceled && result.assets[0]?.base64) {
-      setSelectedImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
-      analyzeImage(result.assets[0].base64);
-    }
-  };
+  const navigate = useCallback((screen: string, params: any = {}) => {
+    setHistoryStack((prev) => [...prev, { screen, params }]);
+  }, []);
 
-  const captureImage = async () => {
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      quality: 0.8,
-      base64: true,
-    });
-    if (!result.canceled && result.assets[0]?.base64) {
-      setSelectedImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
-      analyzeImage(result.assets[0].base64);
-    }
-  };
+  const goBack = useCallback(() => {
+    setHistoryStack((prev) => (prev.length <= 1 ? prev : prev.slice(0, prev.length - 1)));
+  }, []);
 
-  const analyzeImage = async (base64Data: string) => {
-    setLoading(true);
-    setScreen('scan');
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/diagnostics/scan`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-app-language': lang },
-        body: JSON.stringify({ imageBase64: base64Data, language: lang }),
-      });
-      const data = await response.json();
-      if (data.success && data.data) {
-        setScanResult(data.data);
-        setScreen('result');
-      } else {
-        Alert.alert('Scan Issue', data.error?.message || 'Please upload a clear crop leaf image.');
-        setScreen('home');
+  // Android hardware back button behaves like the web app's in-app back
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (historyStack.length > 1) {
+        goBack();
+        return true;
       }
-    } catch {
-      Alert.alert('Network Error', 'Could not connect to FasalDost server.');
-      setScreen('home');
-    } finally {
-      setLoading(false);
-    }
+      return false;
+    });
+    return () => sub.remove();
+  }, [historyStack.length, goBack]);
+
+  const handleLanguageChange = (newLang: Language) => {
+    setLangState(newLang);
+    setLang(newLang);
   };
 
-  const playAudioNarration = async () => {
-    if (playingAudio) {
-      if (soundObject) {
-        await soundObject.stopAsync();
-        await soundObject.unloadAsync();
-        setSoundObject(null);
-      }
-      Speech.stop();
-      setPlayingAudio(false);
-      return;
-    }
-
-    try {
-      setPlayingAudio(true);
-      const textToSpeak = scanResult?.diseases?.[0]?.description_en || 'Crop disease analysis details.';
-      Speech.speak(textToSpeak, {
-        language: lang === 'ur' ? 'ur-PK' : 'en-US',
-        rate: 0.9,
-        onDone: () => setPlayingAudio(false),
-        onError: () => setPlayingAudio(false),
-      });
-    } catch {
-      setPlayingAudio(false);
-    }
+  const handleAuthSuccess = () => {
+    setIsAuthenticated(true);
+    kv.setItem('fd_auth_session', 'true');
+    setHistoryStack([{ screen: 'Home', params: {} }]);
   };
+
+  const handleSignOut = async () => {
+    try { await logOutUser(); } catch {}
+    setIsAuthenticated(false);
+    kv.removeItem('fd_auth_session');
+    setHistoryStack([{ screen: 'Home', params: {} }]);
+  };
+
+  if (!ready) return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
+
+  const p = currentNav.params || {};
+  let body: React.ReactNode;
+
+  if (!showSplash && !hasCompletedOnboarding) {
+    body = (
+      <OnboardingScreen
+        currentLang={lang}
+        onLanguageChange={handleLanguageChange}
+        onComplete={() => {
+          setHasCompletedOnboarding(true);
+          setIsAuthenticated(true);
+          setHistoryStack([{ screen: 'Home', params: {} }]);
+        }}
+      />
+    );
+  } else if (!showSplash && !isAuthenticated) {
+    body = <AuthScreen onSuccess={handleAuthSuccess} onSkip={handleAuthSuccess} />;
+  } else {
+    switch (currentNav.screen) {
+      case 'Scan':
+        body = <ScanScreen lang={lang} onNavigate={navigate} onBack={goBack} />;
+        break;
+      case 'Result':
+        body = <ResultScreen lang={lang} result={p.result} cropName={p.cropName} fromHistory={p.fromHistory} onNavigate={navigate} onBack={goBack} />;
+        break;
+      case 'History':
+        body = <HistoryScreen lang={lang} onNavigate={navigate} onBack={goBack} />;
+        break;
+      case 'FarmerProfile':
+        body = <FarmerProfileScreen lang={lang} isOnboarding={p.onboarding} onNavigate={navigate} onBack={goBack} onSignOut={handleSignOut} />;
+        break;
+      case 'Settings':
+        body = <SettingsScreen lang={lang} onLanguageChange={handleLanguageChange} onNavigate={navigate} onBack={goBack} onSignOut={handleSignOut} />;
+        break;
+      case 'Subscription':
+        body = <SubscriptionScreen lang={lang} onBack={goBack} />;
+        break;
+      case 'Marketplace':
+        body = <MarketplaceScreen lang={lang} onNavigate={navigate} onBack={goBack} />;
+        break;
+      case 'CreateListing':
+        body = <CreateListingScreen lang={lang} onNavigate={navigate} onBack={goBack} />;
+        break;
+      case 'SellerVerification':
+        body = <SellerVerificationScreen lang={lang} onNavigate={navigate} onBack={goBack} onVerifiedSuccess={() => navigate('CreateListing')} />;
+        break;
+      case 'ListingDetail':
+        body = <ListingDetailScreen lang={lang} listing={p.listing} isOwner={p.isOwner} onNavigate={navigate} onBack={goBack} />;
+        break;
+      case 'Home':
+      default:
+        body = <HomeScreen lang={lang} onNavigate={navigate} />;
+    }
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      {showSplash ? (
-        <SplashScreen onFinish={() => setShowSplash(false)} />
-      ) : !onboarded ? (
-        <OnboardingScreen lang={lang} onComplete={() => setOnboarded(true)} />
-      ) : screen === 'home' ? (
-        <HomeScreen lang={lang} onNavigate={navigate} />
-      ) : screen === 'scan' ? (
-        <ScanScreen lang={lang} onPickImage={pickImage} onCaptureImage={captureImage} onBack={() => setScreen('home')} loading={loading} />
-      ) : screen === 'result' ? (
-        <ResultScreen lang={lang} result={scanResult} imageUri={selectedImage} onPlayAudio={playAudioNarration} playingAudio={playingAudio} onBack={() => setScreen('home')} />
-      ) : screen === 'subscription' ? (
-        <SubscriptionScreen lang={lang} onBack={() => setScreen('home')} />
-      ) : screen === 'marketplace' ? (
-        <MarketplaceScreen lang={lang} onBack={() => setScreen('home')} />
-      ) : screen === 'history' ? (
-        <HistoryScreen lang={lang} onBack={() => setScreen('home')} />
-      ) : screen === 'profile' ? (
-        <FarmerProfileScreen lang={lang} onBack={() => setScreen('home')} />
-      ) : screen === 'settings' ? (
-        <SettingsScreen lang={lang} onLanguageChange={setLang} onBack={() => setScreen('home')} />
-      ) : screen === 'createlisting' ? (
-        <CreateListingScreen lang={lang} onBack={() => setScreen('marketplace')} />
-      ) : screen === 'listingdetail' ? (
-        <ListingDetailScreen lang={lang} onBack={() => setScreen('marketplace')} />
-      ) : screen === 'sellerverification' ? (
-        <SellerVerificationScreen lang={lang} onBack={() => setScreen('profile')} />
-      ) : screen === 'advisory' ? (
-        <AdvisoryScreen lang={lang} onBack={() => setScreen('home')} />
-      ) : (
-        <HomeScreen lang={lang} onNavigate={navigate} />
-      )}
-    </SafeAreaView>
+    <View style={{ flex: 1, backgroundColor: '#fff', direction: isRTL(lang) ? 'rtl' : 'ltr' }}>
+      <ScrollView
+        key={currentNav.screen + historyStack.length}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {body}
+      </ScrollView>
+      {showSplash && <SplashScreen durationMs={3000} onFinish={() => setShowSplash(false)} />}
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
-});
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }}>
+        <ErrorBoundary>
+          <Root />
+        </ErrorBoundary>
+      </SafeAreaView>
+    </SafeAreaProvider>
+  );
+}

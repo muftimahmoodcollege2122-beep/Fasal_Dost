@@ -1,0 +1,3 @@
+jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
+jest.mock('./utils/firebase', () => ({ auth: { currentUser: null }, onAuthStateChanged: () => () => {}, logOutUser: async () => {}, signInWithGoogle: async () => { throw new Error('x'); }, signInWithEmail: async () => ({}), signUpWithEmail: async () => ({}), resetPassword: async () => {}, syncUserToDatabase: async () => {}, syncUserToFirestore: async () => {}, getOrSetupRecaptcha: () => ({}), sendPhoneOtp: async () => ({}), sendVerificationEmailToUser: async () => {} }));
+global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ success: true, data: [] }) }));

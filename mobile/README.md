@@ -1,40 +1,18 @@
-# FasalDost Mobile Application (React Native & Expo)
+# FasalDost Mobile (Expo)
 
-Cross-platform mobile application for Android & iOS with AI crop leaf disease scanning, camera integration, and Urdu voice narration.
+Native twin of the web app: same 14 screens, same flow (Splash → Onboarding → Auth → Home …),
+same i18n (6 languages), same store/API layer, styled with NativeWind (Tailwind) so classes match web.
 
-## Getting Started Locally
+## Run on Termux / phone
+```bash
+cd mobile
+npm install --legacy-peer-deps
+# point the app at your backend (the Express server on port 3000):
+export EXPO_PUBLIC_API_URL=http://<server-ip>:3000     # optional; in dev it auto-uses the Expo host on :3000
+npx expo start -c
+```
+Scan the QR with Expo Go. Start the backend separately from the repo root (`npm run dev`).
 
-### 1. Install Dependencies
-Inside the `mobile` directory, run:
-```bash
-npm install
-```
-
-### 2. Start the Local Expo Development Server
-```bash
-npx expo start
-```
-Or for Android directly:
-```bash
-npx expo start --android
-```
-Or for iOS directly:
-```bash
-npx expo start --ios
-```
-
-### 3. Build Native Android APK / AAB or iOS IPA
-Install EAS CLI globally (one-time setup):
-```bash
-npm install -g eas-cli
-```
-
-Build for Android:
-```bash
-npx eas build --platform android --profile preview
-```
-
-Build for iOS:
-```bash
-npx eas build --platform ios --profile preview
-```
+## Notes
+- Google sign-in and phone-OTP are browser-only flows; the mobile app uses email/password.
+- `npm test` runs a render smoke test for every screen.

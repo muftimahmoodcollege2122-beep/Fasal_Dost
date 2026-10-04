@@ -1,29 +1,51 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// mobile/screens/MarketplaceScreen.tsx
-// React Native Marketplace Screen matching web UI 100% identically
+// src/screens/MarketplaceScreen.tsx
+// Marketplace produce feed (3 listings per row, dynamic database fetching)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, Alert } from 'react-native';
-import { ArrowLeft, Store, Plus, MapPin, RefreshCw, CheckCircle2 } from 'lucide-react-native';
+import { Box, Btn, Img, T } from '../ui/web';
+import {
+  ArrowLeft,
+  Store,
+  Plus,
+  MapPin,
+  RefreshCw,
+  Video,
+  Camera,
+  Layers,
+  Banknote,
+  CheckCircle2,
+} from '../ui/icons';
+import { Language } from '../utils/i18n';
+import {
+  getListings,
+  ProduceListing,
+  isProfileComplete,
+  isSellerVerified,
+} from '../utils/store';
 
-const API_BASE_URL = 'https://ais-dev-hexsq6a75nx3v7mukdbtq4-171051146732.asia-southeast1.run.app';
+interface MarketplaceScreenProps {
+  lang: Language;
+  onNavigate: (screen: string, params?: any) => void;
+  onBack: () => void;
+}
 
-export function MarketplaceScreen({ lang, onNavigate, onBack }: { lang: 'ur' | 'en'; onNavigate: (screen: string, params?: any) => void; onBack: () => void }) {
-  const isUrdu = lang === 'ur';
-  const [listings, setListings] = useState<any[]>([]);
+export const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
+  lang: _lang,
+  onNavigate,
+  onBack,
+}) => {
+  const [listings, setListings] = useState<ProduceListing[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/marketplace/listings`);
-      const data = await res.json();
-      if (data.success && data.data) {
-        setListings(data.data);
-      }
+      const data = await getListings();
+      setListings(data);
     } catch (err) {
-      console.warn('Failed to fetch listings:', err);
+      console.error('Failed to load marketplace listings:', err);
     } finally {
       setLoading(false);
     }
@@ -33,111 +55,189 @@ export function MarketplaceScreen({ lang, onNavigate, onBack }: { lang: 'ur' | '
     loadData();
   }, []);
 
-  const handleCreateClick = () => {
+  const handleCreateClick = async () => {
+    const verified = await isSellerVerified();
+    if (!verified) {
+      onNavigate('SellerVerification');
+      return;
+    }
     onNavigate('CreateListing');
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <Box className="flex flex-col min-h-full pb-10">
       {/* Top Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.iconBtn} onPress={onBack}>
-          <ArrowLeft size={18} color="#0f172a" />
-        </TouchableOpacity>
+      <Box className="flex items-center justify-between py-2 mb-3 border-b border-slate-100 pb-3">
+        <Btn
+          onClick={onBack}
+          title="Back"
+          className="w-10 h-10 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 transition active:scale-95 shadow-2xs cursor-pointer"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Btn>
 
-        <View style={styles.titleBox}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <Store size={16} color="#0f172a" />
-            <Text style={styles.headerTitle}>Marketplace</Text>
-          </View>
-          <Text style={styles.headerSub}>{isUrdu ? 'لائیو کسان منڈی' : 'Live Farmers Produce Exchange'}</Text>
-        </View>
+        <Box className="text-center">
+          <T className="text-base font-extrabold text-slate-900 inline-flex items-center gap-1.5">
+            <Store className="w-4 h-4 text-slate-800" />
+            <T>Marketplace</T>
+          </T>
+          <T className="text-[10px] text-slate-400 font-medium">
+            Live Farmers Produce Exchange
+          </T>
+        </Box>
 
-        <TouchableOpacity style={styles.postBtn} onPress={handleCreateClick}>
-          <Plus size={14} color="#ffffff" style={{ marginRight: 2 }} />
-          <Text style={styles.postBtnText}>{isUrdu ? 'اشتہار' : 'Post'}</Text>
-        </TouchableOpacity>
-      </View>
+        {/* Post Listing Button */}
+        <Btn
+          onClick={handleCreateClick}
+          className="px-3 py-1.5 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1 transition active:scale-95 shadow-2xs cursor-pointer"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <T>Post</T>
+        </Btn>
+      </Box>
 
       {/* Main Content Area */}
       {loading ? (
-        <View style={styles.centerBox}>
-          <ActivityIndicator size="small" color="#0f172a" />
-          <Text style={styles.centerText}>{isUrdu ? 'فصلیں لوڈ ہو رہی ہیں...' : 'Loading marketplace listings...'}</Text>
-        </View>
+        <Box className="flex-1 flex flex-col items-center justify-center py-24 text-slate-400">
+          <RefreshCw className="w-7 h-7 animate-spin mb-2" />
+          <T className="text-xs font-semibold">Loading marketplace listings...</T>
+        </Box>
       ) : listings.length === 0 ? (
-        <View style={styles.centerBox}>
-          <Store size={36} color="#94a3b8" style={{ marginBottom: 12 }} />
-          <Text style={styles.emptyTitle}>{isUrdu ? 'کوئی فصل درج نہیں ہے' : 'No Produce Listed Yet'}</Text>
-          <Text style={styles.emptyDesc}>
-            {isUrdu ? 'پہلی فصل تصویر کے ساتھ منڈی میں درج کریں۔' : 'Be the first farmer to list freshly harvested crops for buyers nationwide.'}
-          </Text>
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleCreateClick}>
-            <Plus size={16} color="#ffffff" style={{ marginRight: 6 }} />
-            <Text style={styles.primaryBtnText}>{isUrdu ? 'نیا اشتہار بنائیں' : 'Create First Listing'}</Text>
-          </TouchableOpacity>
-        </View>
+        /* Dynamic Empty State - No Hardcoded Data */
+        <Box className="flex-1 flex flex-col items-center justify-center text-center py-20 px-4 space-y-3">
+          <Box className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center mx-auto text-slate-400 shadow-2xs">
+            <Store className="w-8 h-8" />
+          </Box>
+          <T className="text-base font-bold text-slate-800">
+            No Produce Listed Yet
+          </T>
+          <T className="text-xs text-slate-500 max-w-xs leading-relaxed">
+            Be the first farmer to list freshly harvested crops with multiple photos and videos for buyers nationwide.
+          </T>
+          <Btn
+            onClick={handleCreateClick}
+            className="mt-2 px-6 py-2.5 rounded-full bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition active:scale-95 shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <T>Create First Listing</T>
+          </Btn>
+        </Box>
       ) : (
-        <View>
-          <View style={styles.listHeaderRow}>
-            <Text style={styles.countText}>{listings.length} {isUrdu ? 'فعال لسٹنگز' : 'Active Listings'}</Text>
-            <TouchableOpacity onPress={loadData} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <RefreshCw size={12} color="#64748b" />
-              <Text style={styles.refreshText}>{isUrdu ? 'ریشریف' : 'Refresh'}</Text>
-            </TouchableOpacity>
-          </View>
+        /* 3 Listings Per Row Grid */
+        <Box>
+          <Box className="flex items-center justify-between mb-2.5 px-0.5">
+            <T className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              {listings.length} Active {listings.length === 1 ? 'Listing' : 'Listings'}
+            </T>
+            <Btn
+              onClick={loadData}
+              title="Refresh listings"
+              className="text-[10px] text-slate-400 hover:text-slate-800 flex items-center gap-1 cursor-pointer font-semibold"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <T>Refresh</T>
+            </Btn>
+          </Box>
 
-          <View style={styles.grid}>
-            {listings.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.card}
-                onPress={() => onNavigate('ListingDetail', { listing: item })}
-              >
-                <View style={styles.imgPlaceholder}>
-                  <Text style={{ fontSize: 24 }}>🌾</Text>
-                </View>
-                <View style={styles.cardBody}>
-                  <Text style={styles.cropTitle} numberOfLines={1}>{item.title || item.cropType || 'Crop Produce'}</Text>
-                  <Text style={styles.price}>PKR {item.pricePerUnit || item.price || '3,800'}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                    <MapPin size={10} color="#64748b" />
-                    <Text style={styles.loc} numberOfLines={1}>{item.location || 'Punjab, Pakistan'}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+          <Box className="grid grid-cols-3 gap-2 sm:gap-2.5">
+            {listings.map((item) => {
+              const isSold = item.status === 'sold';
+              const coverImage = item.images?.[0] || item.imageBase64;
+              const imageCount = item.images?.length || (item.imageBase64 ? 1 : 0);
+              const videoCount = item.videos?.length || 0;
+
+              return (
+                <Box
+                  key={item.id}
+                  onClick={() =>
+                    onNavigate('ListingDetail', { listing: item, isOwner: false })
+                  }
+                  className={`flex flex-col rounded-xl border transition cursor-pointer overflow-hidden shadow-2xs group ${
+                    isSold
+                      ? 'border-slate-200 bg-slate-50 opacity-70'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs'
+                  }`}
+                >
+                  {/* Media Thumbnail Container */}
+                  <Box className="relative aspect-square w-full bg-slate-100 overflow-hidden">
+                    {coverImage ? (
+                      <Img
+                        src={coverImage}
+                        alt={item.cropName}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <Box className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                        <Store className="w-6 h-6" />
+                      </Box>
+                    )}
+
+                    {/* Media Badges */}
+                    <Box className="absolute top-1 left-1 flex flex-col gap-0.5">
+                      {imageCount > 1 && (
+                        <T className="px-1 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[8px] font-bold text-white flex items-center gap-0.5 leading-none">
+                          <Camera className="w-2.5 h-2.5" />
+                          <T>{imageCount}</T>
+                        </T>
+                      )}
+                      {videoCount > 0 && (
+                        <T className="px-1 py-0.5 rounded bg-rose-600/90 backdrop-blur-xs text-[8px] font-bold text-white flex items-center gap-0.5 leading-none">
+                          <Video className="w-2.5 h-2.5" />
+                          <T>{videoCount}</T>
+                        </T>
+                      )}
+                    </Box>
+
+                    {isSold && (
+                      <Box className="absolute inset-0 bg-slate-900/60 flex items-center justify-center text-[9px] text-white font-extrabold tracking-wider">
+                        SOLD
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* Card Content - Compact 3-Column Mobile Layout */}
+                  <Box className="p-1.5 flex flex-col flex-1 justify-between">
+                    <Box>
+                      <Box className="flex items-center gap-1">
+                        <T className="text-[11px] font-extrabold text-slate-900 truncate leading-tight flex-1">
+                          {item.cropName}
+                        </T>
+                        {(item.sellerVerified !== false) && (
+                          <CheckCircle2 className="w-3 h-3 text-slate-900 shrink-0" />
+                        )}
+                      </Box>
+                      {item.variety && (
+                        <T className="text-[9px] text-slate-400 truncate leading-tight">
+                          {item.variety}
+                        </T>
+                      )}
+                    </Box>
+
+                    <Box className="mt-1 pt-1 border-t border-slate-100">
+                      <Box className="text-[11px] font-black text-slate-900 leading-tight">
+                        Rs {item.price}
+                        <T className="text-[9px] font-normal text-slate-400 block sm:inline">
+                          /{item.unit}
+                        </T>
+                      </Box>
+
+                      <Box className="text-[9px] text-slate-500 font-semibold truncate mt-0.5">
+                        {item.quantity} {item.unit}
+                      </Box>
+
+                      <Box className="flex items-center gap-0.5 text-[8.5px] text-slate-400 truncate mt-0.5">
+                        <MapPin className="w-2.5 h-2.5 shrink-0" />
+                        <T className="truncate">{item.district || item.province}</T>
+                      </Box>
+                    </Box>
+                  </Box>
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
       )}
-    </ScrollView>
+    </Box>
   );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
-  content: { padding: 16, paddingBottom: 40 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingBottom: 12 },
-  iconBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
-  titleBox: { alignItems: 'center' },
-  headerTitle: { fontSize: 16, fontWeight: '900', color: '#0f172a' },
-  headerSub: { fontSize: 10, fontWeight: '600', color: '#64748b', marginTop: 1 },
-  postBtn: { backgroundColor: '#0f172a', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
-  postBtnText: { fontSize: 12, fontWeight: '800', color: '#ffffff' },
-  centerBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  centerText: { fontSize: 12, fontWeight: '700', color: '#64748b', marginTop: 10 },
-  emptyTitle: { fontSize: 16, fontWeight: '900', color: '#0f172a', marginBottom: 4 },
-  emptyDesc: { fontSize: 12, color: '#64748b', textAlign: 'center', paddingHorizontal: 20, marginBottom: 16, lineHeight: 18 },
-  primaryBtn: { backgroundColor: '#0f172a', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 14, flexDirection: 'row', alignItems: 'center' },
-  primaryBtnText: { fontSize: 13, fontWeight: '800', color: '#ffffff' },
-  listHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  countText: { fontSize: 11, fontWeight: '800', color: '#64748b', textTransform: 'uppercase' },
-  refreshText: { fontSize: 11, fontWeight: '700', color: '#64748b' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10 },
-  card: { width: '48%', backgroundColor: '#ffffff', borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden', marginBottom: 10 },
-  imgPlaceholder: { width: '100%', height: 100, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
-  cardBody: { padding: 10 },
-  cropTitle: { fontSize: 13, fontWeight: '800', color: '#0f172a', marginBottom: 2 },
-  price: { fontSize: 13, fontWeight: '900', color: '#059669' },
-  loc: { fontSize: 10, color: '#64748b' },
-});
+};
