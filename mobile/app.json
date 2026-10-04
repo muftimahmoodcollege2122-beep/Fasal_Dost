@@ -28,7 +28,7 @@
       "fallbackToCacheTimeout": 0
     },
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "fingerprint"
     },
     "plugins": [
       [
@@ -36,7 +36,8 @@
         {
           "cameraPermission": "Allow FasalDost to access your camera to scan crops for diseases and verify CNIC identity."
         }
-      ]
+      ],
+      "expo-updates"
     ]
   }
 }

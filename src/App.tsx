@@ -14,6 +14,7 @@ import { AuthScreen } from './modules/auth';
 import { HomeScreen, FarmerProfileScreen, SettingsScreen } from './modules/farmer';
 import { ScanScreen, ResultScreen, HistoryScreen } from './modules/diagnostics';
 import { SubscriptionScreen } from './screens/SubscriptionScreen';
+import { UpdateToast } from './components/UpdateToast';
 import {
   MarketplaceScreen,
   CreateListingScreen,
@@ -141,6 +142,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      <UpdateToast />
       <div
         dir={isRTL(lang) ? 'rtl' : 'ltr'}
         className="min-h-screen bg-slate-100/90 flex items-center justify-center p-0 sm:p-5 text-slate-900"

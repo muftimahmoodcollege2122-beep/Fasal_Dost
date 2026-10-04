@@ -43,3 +43,10 @@ describe.each(cases)('%s renders', (_n, el) => {
     await act(async () => { tree.unmount(); });
   });
 });
+
+import { OtaUpdateBanner } from '../components/OtaUpdateBanner';
+it('OTA banner stays hidden when no update is pending', async () => {
+  let tree: any;
+  await act(async () => { tree = renderer.create(<OtaUpdateBanner />); });
+  expect(tree.toJSON()).toBeNull();
+});

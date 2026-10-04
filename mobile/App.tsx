@@ -7,13 +7,13 @@ import './global.css';
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, BackHandler, Pressable, StatusBar, Alert } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import * as Updates from 'expo-updates';
 
 import { Language, isRTL } from './utils/i18n';
 import { getLang, setLang } from './utils/store';
 import { kv } from './lib/kv';
 import { auth, onAuthStateChanged, logOutUser } from './utils/firebase';
 
+import { OtaUpdateBanner } from './components/OtaUpdateBanner';
 import { SplashScreen } from './screens/SplashScreen';
 import { OnboardingScreen } from './screens/OnboardingScreen';
 import { AuthScreen } from './screens/AuthScreen';
@@ -85,22 +85,6 @@ function Root() {
       }
     });
     return () => unsub();
-  }, []);
-
-  // Over-the-air updates (release builds only)
-  useEffect(() => {
-    if (__DEV__) return;
-    (async () => {
-      try {
-        const update = await Updates.checkForUpdateAsync();
-        if (update.isAvailable) {
-          await Updates.fetchUpdateAsync();
-          Alert.alert('App Updated', 'New version downloaded. Restarting...', [{ text: 'OK', onPress: () => Updates.reloadAsync() }]);
-        }
-      } catch (e) {
-        console.warn('OTA check skipped:', e);
-      }
-    })();
   }, []);
 
   const currentNav = historyStack[historyStack.length - 1] || { screen: 'Home', params: {} };
@@ -211,6 +195,7 @@ function Root() {
       >
         {body}
       </ScrollView>
+      <OtaUpdateBanner />
       {showSplash && <SplashScreen durationMs={3000} onFinish={() => setShowSplash(false)} />}
     </View>
   );
