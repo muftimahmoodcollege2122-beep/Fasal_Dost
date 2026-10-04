@@ -1,6 +1,6 @@
 // Native replacement for web <input type="file"> + FileReader: returns data URLs like the web app expects.
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Alert } from 'react-native';
 
 export interface PickedMedia {
@@ -37,7 +37,7 @@ export async function pickMedia(opts: PickOpts): Promise<PickedMedia[]> {
     }
 
     const common: ImagePicker.ImagePickerOptions = {
-      mediaTypes: isVideo ? ImagePicker.MediaTypeOptions.Videos : ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: isVideo ? ['videos'] : ['images'],
       quality: opts.quality ?? 0.7,
       base64: !isVideo,
       allowsMultipleSelection: !!opts.multiple && opts.source === 'gallery',

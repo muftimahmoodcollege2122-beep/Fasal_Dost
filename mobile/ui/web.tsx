@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState } from 'react';
 import {
   View, Text, Pressable, TextInput, Image, Modal, ScrollView, FlatList, TouchableOpacity, Platform, Keyboard,
 } from 'react-native';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { normalize, mergeText, textTokens, gridInfo } from './classes';
 import { mediaUrl } from '../lib/config';
 
@@ -162,9 +163,10 @@ export function Img({ className = '', src, style, ...rest }: any) {
 }
 
 export function Vid({ className = '', src, style }: any) {
-  const { Video, ResizeMode } = require('expo-av');
-  if (!src) return null;
-  return <Video className={normalize(className)} style={[{ width: '100%', height: '100%' }, style]} source={{ uri: mediaUrl(src) }} useNativeControls resizeMode={ResizeMode.COVER} isMuted />;
+  const uri = src ? mediaUrl(src) : '';
+  const player = useVideoPlayer(uri ? { uri } : null, (p: any) => { p.muted = true; });
+  if (!uri) return null;
+  return <VideoView player={player} nativeControls contentFit="cover" style={[{ width: '100%', height: '100%' }, style]} />;
 }
 
 export function Page({ children, className = '' }: any) {

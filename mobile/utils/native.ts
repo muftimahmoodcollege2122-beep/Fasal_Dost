@@ -1,8 +1,8 @@
 // Native stand-ins for browser APIs the web screens use (confirm, Audio, clipboard, share, window.open).
 import { Alert, Linking, Share } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Clipboard from 'expo-clipboard';
-import { Audio as ExpoAudio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio';
 import * as Speech from 'expo-speech';
 
 export const confirmAsync = (message: string, title = 'FasalDost'): Promise<boolean> =>
@@ -25,11 +25,12 @@ export const shareText = async (title: string, text: string): Promise<boolean> =
   try { await Share.share({ title, message: text }); return true; } catch { return false; }
 };
 
-// Minimal HTMLAudioElement look-alike used by ResultScreen (data URL -> temp file -> expo-av).
+// Minimal HTMLAudioElement look-alike used by ResultScreen (data URL -> temp file -> expo-audio).
 export class NativeAudio {
   onended: (() => void) | null = null;
   onerror: (() => void) | null = null;
-  private sound: ExpoAudio.Sound | null = null;
+  private player: AudioPlayer | null = null;
+  private sub: { remove: () => void } | null = null;
   private file: string | null = null;
   constructor(private dataUrl: string) {}
 
@@ -38,19 +39,19 @@ export class NativeAudio {
     const ext = /mp3|mpeg/.test(head) ? 'mp3' : 'wav';
     this.file = `${FileSystem.cacheDirectory}fd_tts_${Date.now()}.${ext}`;
     await FileSystem.writeAsStringAsync(this.file, b64, { encoding: FileSystem.EncodingType.Base64 });
-    await ExpoAudio.setAudioModeAsync({ playsInSilentModeIOS: true });
-    const { sound } = await ExpoAudio.Sound.createAsync({ uri: this.file }, { shouldPlay: true });
-    this.sound = sound;
-    sound.setOnPlaybackStatusUpdate((st: any) => {
+    try { await setAudioModeAsync({ playsInSilentMode: true }); } catch {}
+    const player = createAudioPlayer({ uri: this.file });
+    this.player = player;
+    this.sub = player.addListener('playbackStatusUpdate', (st: any) => {
       if (st?.didJustFinish) this.onended?.();
-      if (st?.error) this.onerror?.();
     });
+    player.play();
   }
 
   pause() {
-    const s = this.sound;
-    this.sound = null;
-    s?.stopAsync().catch(() => {}).finally(() => s?.unloadAsync().catch(() => {}));
+    try { this.sub?.remove(); this.player?.pause(); this.player?.remove(); } catch {}
+    this.player = null;
+    this.sub = null;
     if (this.file) FileSystem.deleteAsync(this.file, { idempotent: true }).catch(() => {});
   }
 }

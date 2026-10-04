@@ -1,4 +1,4 @@
-# FasalDost Mobile (Expo)
+# FasalDost Mobile (Expo SDK 57)
 
 Native twin of the web app: same 14 screens, same flow (Splash → Onboarding → Auth → Home …),
 same i18n (6 languages), same store/API layer, styled with NativeWind (Tailwind) so classes match web.
