@@ -16,3 +16,6 @@ Scan the QR with Expo Go. Start the backend separately from the repo root (`npm 
 ## Notes
 - Google sign-in and phone-OTP are browser-only flows; the mobile app uses email/password.
 - `npm test` runs a render smoke test for every screen.
+
+## Termux / low-watcher devices
+`npm run termux` — finds the phone IP, prints the Expo Go QR, and runs Metro with file watching off (avoids `ENOSPC: System limit for number of file watchers reached`). Edits need a restart (no hot reload).
