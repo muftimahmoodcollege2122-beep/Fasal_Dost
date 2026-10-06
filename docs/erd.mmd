@@ -2,15 +2,15 @@ erDiagram
     users {
         String id PK
         String uid UK
-        String email UK
-        String phone
-        String displayName
-        String photoUrl
-        String role
-        String passwordHash
+        String email UK "nullable"
+        String phone "nullable"
+        String displayName "nullable"
+        String photoUrl "nullable"
+        Role role
+        String passwordHash "nullable"
         String language
         String status
-        DateTime lastLoginAt
+        DateTime lastLoginAt "nullable"
         DateTime createdAt
         DateTime updatedAt
     }
@@ -19,32 +19,32 @@ erDiagram
         String userId FK,UK
         String fullName
         String phoneNumber
-        String email
-        String profilePhotoUrl
-        String cnicNumber
-        String cnicFrontUrl
-        String cnicBackUrl
+        String email "nullable"
+        String profilePhotoUrl "nullable"
+        String cnicNumber "nullable"
+        String cnicFrontUrl "nullable"
+        String cnicBackUrl "nullable"
         String province
-        String division
-        String district
-        String tehsil
-        String village
-        String landSizeAcres
+        String division "nullable"
+        String district "nullable"
+        String tehsil "nullable"
+        String village "nullable"
+        String landSizeAcres "nullable"
         String preferredLanguage
-        String_arr primaryCrops
+        String[] primaryCrops
         Boolean verifiedStatus
         Boolean isSellerVerified
-        String sellerVerificationStatus
-        String antiBotVerificationScore
-        String aiVerificationConfidence
-        String aiVerificationNotes
-        String_arr verificationIssues
-        String verifiedSellerBadge
-        String rejectedReason
-        String reviewedBy
-        DateTime verifiedAt
-        String farmerType
-        DateTime dateOfBirth
+        VerificationStatus sellerVerificationStatus
+        String antiBotVerificationScore "nullable"
+        String aiVerificationConfidence "nullable"
+        String aiVerificationNotes "nullable"
+        String[] verificationIssues
+        String verifiedSellerBadge "nullable"
+        String rejectedReason "nullable"
+        String reviewedBy "nullable"
+        DateTime verifiedAt "nullable"
+        String farmerType "nullable"
+        DateTime dateOfBirth "nullable"
         Boolean cnicVerified
         DateTime createdAt
         DateTime updatedAt
@@ -54,15 +54,15 @@ erDiagram
         String userId FK
         String cropName
         String imageUrl
-        String s3Key
+        String s3Key "nullable"
         Boolean isHealthy
         Decimal confidenceScore
-        String primaryDisease
+        String primaryDisease "nullable"
         Json detectedDiseases
         Json treatmentPlan
         Json preventionAdvice
         Json symptomsObserved
-        Int processingTimeMs
+        Int processingTimeMs "nullable"
         DateTime scanDate
         DateTime createdAt
     }
@@ -71,21 +71,21 @@ erDiagram
         String userId FK
         String sellerName
         String sellerPhone
-        String sellerEmail
+        String sellerEmail "nullable"
         String cropName
-        String variety
+        String variety "nullable"
         Decimal quantity
         String unit
         Decimal price
-        String qualityGrade
-        DateTime harvestDate
-        String description
+        String qualityGrade "nullable"
+        DateTime harvestDate "nullable"
+        String description "nullable"
         String province
-        String district
-        String tehsil
-        String_arr images
-        String_arr videos
-        String status
+        String district "nullable"
+        String tehsil "nullable"
+        String[] images
+        String[] videos
+        ListingStatus status
         Boolean isVerifiedSeller
         Int viewsCount
         Int inquiriesCount
@@ -100,10 +100,10 @@ erDiagram
         Json data
         String status
         Int attempts
-        Json result
-        String error
-        DateTime startedAt
-        DateTime completedAt
+        Json result "nullable"
+        String error "nullable"
+        DateTime startedAt "nullable"
+        DateTime completedAt "nullable"
         DateTime createdAt
     }
     accounts {
@@ -116,8 +116,8 @@ erDiagram
         String id PK
         String name
         String type
-        String registrationNumber
-        String address
+        String registrationNumber "nullable"
+        String address "nullable"
         String status
         DateTime createdAt
         DateTime updatedAt
@@ -134,12 +134,12 @@ erDiagram
         String id PK
         String farmerId FK
         String name
-        Float latitude
-        Float longitude
-        String address
-        Decimal areaSize
-        String ownershipType
-        String irrigationType
+        Float latitude "nullable"
+        Float longitude "nullable"
+        String address "nullable"
+        Decimal areaSize "nullable"
+        String ownershipType "nullable"
+        String irrigationType "nullable"
         String status
         DateTime createdAt
         DateTime updatedAt
@@ -147,20 +147,20 @@ erDiagram
     crops {
         String id PK
         String name
-        String category
-        String description
+        String category "nullable"
+        String description "nullable"
         DateTime createdAt
         DateTime updatedAt
     }
     crop_cycles {
         String id PK
         String farmId FK
-        String fieldId
+        String fieldId "nullable"
         String cropId FK
-        String variety
-        DateTime plantingDate
-        DateTime expectedHarvestDate
-        DateTime actualHarvestDate
+        String variety "nullable"
+        DateTime plantingDate "nullable"
+        DateTime expectedHarvestDate "nullable"
+        DateTime actualHarvestDate "nullable"
         String status
         DateTime createdAt
         DateTime updatedAt
@@ -168,15 +168,15 @@ erDiagram
     listings {
         String id PK
         String farmerId FK
-        String cropId FK
+        String cropId FK "nullable"
         String title
-        String description
+        String description "nullable"
         Decimal quantity
         String unit
         Decimal pricePerUnit
-        String qualityGrade
-        DateTime availableFrom
-        DateTime availableUntil
+        String qualityGrade "nullable"
+        DateTime availableFrom "nullable"
+        DateTime availableUntil "nullable"
         String status
         DateTime createdAt
         DateTime updatedAt
@@ -195,18 +195,18 @@ erDiagram
         Decimal offerPrice
         Decimal quantity
         String status
-        DateTime expiresAt
+        DateTime expiresAt "nullable"
         DateTime createdAt
     }
     orders {
         String id PK
         String buyerId FK
-        String listingId FK
+        String listingId FK "nullable"
         Decimal totalAmount
         String status
-        String deliveryAddress
-        DateTime expectedDeliveryDate
-        DateTime actualDeliveryDate
+        String deliveryAddress "nullable"
+        DateTime expectedDeliveryDate "nullable"
+        DateTime actualDeliveryDate "nullable"
         DateTime createdAt
         DateTime updatedAt
     }
@@ -222,37 +222,37 @@ erDiagram
     logistics_providers {
         String id PK
         String name
-        String phone
-        String type
+        String phone "nullable"
+        String type "nullable"
         String status
         DateTime createdAt
     }
     shipments {
         String id PK
         String orderId FK
-        String logisticsProviderId FK
-        String trackingNumber UK
+        String logisticsProviderId FK "nullable"
+        String trackingNumber UK "nullable"
         String status
-        String pickupLocation
-        String deliveryLocation
-        DateTime dispatchedAt
-        DateTime deliveredAt
+        String pickupLocation "nullable"
+        String deliveryLocation "nullable"
+        DateTime dispatchedAt "nullable"
+        DateTime deliveredAt "nullable"
         DateTime createdAt
     }
     delivery_events {
         String id PK
         String shipmentId FK
         String status
-        String location
+        String location "nullable"
         DateTime timestamp
         DateTime createdAt
     }
     warehouses {
         String id PK
         String name
-        String location
-        Decimal capacity
-        String type
+        String location "nullable"
+        Decimal capacity "nullable"
+        String type "nullable"
         String status
         DateTime createdAt
         DateTime updatedAt
@@ -263,9 +263,9 @@ erDiagram
         String cropId FK
         Decimal quantity
         String unit
-        String qualityGrade
+        String qualityGrade "nullable"
         DateTime receivedAt
-        DateTime expiryDate
+        DateTime expiryDate "nullable"
         String status
         DateTime createdAt
     }
@@ -275,8 +275,8 @@ erDiagram
         String warehouseId FK
         String type
         Decimal quantity
-        String referenceId
-        String notes
+        String referenceId "nullable"
+        String notes "nullable"
         DateTime createdAt
     }
     wallet_accounts {
@@ -295,8 +295,8 @@ erDiagram
         String type
         Decimal amount
         String currency
-        String description
-        String referenceId
+        String description "nullable"
+        String referenceId "nullable"
         String status
         DateTime createdAt
     }
@@ -307,19 +307,19 @@ erDiagram
         String entryType
         Decimal amount
         Decimal balanceAfter
-        String description
+        String description "nullable"
         DateTime createdAt
     }
     settlements {
         String id PK
         String orderId FK
         String farmerId FK
-        String logisticsProviderId FK
+        String logisticsProviderId FK "nullable"
         Decimal platformFee
         Decimal farmerAmount
-        Decimal logisticsAmount
+        Decimal logisticsAmount "nullable"
         String status
-        DateTime releaseDate
+        DateTime releaseDate "nullable"
         DateTime createdAt
     }
     payouts {
@@ -329,7 +329,7 @@ erDiagram
         Decimal amount
         String method
         String status
-        String transactionReference
+        String transactionReference "nullable"
         DateTime createdAt
     }
     verifications {
@@ -338,7 +338,7 @@ erDiagram
         String type
         String status
         Json documents
-        DateTime verifiedAt
+        DateTime verifiedAt "nullable"
         DateTime createdAt
     }
     disputes {
@@ -346,13 +346,13 @@ erDiagram
         String orderId FK
         String raisedById FK
         String type
-        String description
+        String description "nullable"
         String status
         DateTime createdAt
     }
     audit_logs {
         String id PK
-        String userId FK
+        String userId FK "nullable"
         String action
         String entityType
         String entityId
@@ -362,7 +362,7 @@ erDiagram
     crop_categories {
         String id PK
         String name UK
-        String description
+        String description "nullable"
     }
     units {
         String id PK
@@ -372,16 +372,16 @@ erDiagram
     roles {
         String id PK
         String name UK
-        String description
+        String description "nullable"
     }
     countries {
         String id PK
         String name
         String code UK
     }
-    users ||--o| farmer_profiles : "userId"
-    users ||--o{ diagnostic_scans : "userId"
-    users ||--o{ marketplace_listings : "userId"
+    users ||--o| farmer_profiles : "userId to uid"
+    users ||--o{ diagnostic_scans : "userId to uid"
+    users ||--o{ marketplace_listings : "userId to uid"
     users ||--o{ accounts : "userId"
     users ||--o{ organization_members : "userId"
     organizations ||--o{ organization_members : "organizationId"
