@@ -1,0 +1,419 @@
+erDiagram
+    users {
+        String id PK
+        String uid UK
+        String email UK
+        String phone
+        String displayName
+        String photoUrl
+        String role
+        String passwordHash
+        String language
+        String status
+        DateTime lastLoginAt
+        DateTime createdAt
+        DateTime updatedAt
+    }
+    farmer_profiles {
+        String id PK
+        String userId FK,UK
+        String fullName
+        String phoneNumber
+        String email
+        String profilePhotoUrl
+        String cnicNumber
+        String cnicFrontUrl
+        String cnicBackUrl
+        String province
+        String division
+        String district
+        String tehsil
+        String village
+        String landSizeAcres
+        String preferredLanguage
+        String_arr primaryCrops
+        Boolean verifiedStatus
+        Boolean isSellerVerified
+        String sellerVerificationStatus
+        String antiBotVerificationScore
+        String aiVerificationConfidence
+        String aiVerificationNotes
+        String_arr verificationIssues
+        String verifiedSellerBadge
+        String rejectedReason
+        String reviewedBy
+        DateTime verifiedAt
+        String farmerType
+        DateTime dateOfBirth
+        Boolean cnicVerified
+        DateTime createdAt
+        DateTime updatedAt
+    }
+    diagnostic_scans {
+        String id PK
+        String userId FK
+        String cropName
+        String imageUrl
+        String s3Key
+        Boolean isHealthy
+        Decimal confidenceScore
+        String primaryDisease
+        Json detectedDiseases
+        Json treatmentPlan
+        Json preventionAdvice
+        Json symptomsObserved
+        Int processingTimeMs
+        DateTime scanDate
+        DateTime createdAt
+    }
+    marketplace_listings {
+        String id PK
+        String userId FK
+        String sellerName
+        String sellerPhone
+        String sellerEmail
+        String cropName
+        String variety
+        Decimal quantity
+        String unit
+        Decimal price
+        String qualityGrade
+        DateTime harvestDate
+        String description
+        String province
+        String district
+        String tehsil
+        String_arr images
+        String_arr videos
+        String status
+        Boolean isVerifiedSeller
+        Int viewsCount
+        Int inquiriesCount
+        DateTime createdAt
+        DateTime updatedAt
+    }
+    job_executions {
+        String id PK
+        String queueName
+        String jobId UK
+        String name
+        Json data
+        String status
+        Int attempts
+        Json result
+        String error
+        DateTime startedAt
+        DateTime completedAt
+        DateTime createdAt
+    }
+    accounts {
+        String id PK
+        String userId FK
+        String role
+        DateTime createdAt
+    }
+    organizations {
+        String id PK
+        String name
+        String type
+        String registrationNumber
+        String address
+        String status
+        DateTime createdAt
+        DateTime updatedAt
+    }
+    organization_members {
+        String id PK
+        String userId FK
+        String organizationId FK
+        String role
+        String status
+        DateTime createdAt
+    }
+    farms {
+        String id PK
+        String farmerId FK
+        String name
+        Float latitude
+        Float longitude
+        String address
+        Decimal areaSize
+        String ownershipType
+        String irrigationType
+        String status
+        DateTime createdAt
+        DateTime updatedAt
+    }
+    crops {
+        String id PK
+        String name
+        String category
+        String description
+        DateTime createdAt
+        DateTime updatedAt
+    }
+    crop_cycles {
+        String id PK
+        String farmId FK
+        String fieldId
+        String cropId FK
+        String variety
+        DateTime plantingDate
+        DateTime expectedHarvestDate
+        DateTime actualHarvestDate
+        String status
+        DateTime createdAt
+        DateTime updatedAt
+    }
+    listings {
+        String id PK
+        String farmerId FK
+        String cropId FK
+        String title
+        String description
+        Decimal quantity
+        String unit
+        Decimal pricePerUnit
+        String qualityGrade
+        DateTime availableFrom
+        DateTime availableUntil
+        String status
+        DateTime createdAt
+        DateTime updatedAt
+    }
+    listing_images {
+        String id PK
+        String listingId FK
+        String imageUrl
+        Boolean isPrimary
+        DateTime createdAt
+    }
+    offers {
+        String id PK
+        String listingId FK
+        String buyerId FK
+        Decimal offerPrice
+        Decimal quantity
+        String status
+        DateTime expiresAt
+        DateTime createdAt
+    }
+    orders {
+        String id PK
+        String buyerId FK
+        String listingId FK
+        Decimal totalAmount
+        String status
+        String deliveryAddress
+        DateTime expectedDeliveryDate
+        DateTime actualDeliveryDate
+        DateTime createdAt
+        DateTime updatedAt
+    }
+    order_items {
+        String id PK
+        String orderId FK
+        String listingId FK
+        Decimal quantity
+        Decimal unitPrice
+        Decimal totalPrice
+        DateTime createdAt
+    }
+    logistics_providers {
+        String id PK
+        String name
+        String phone
+        String type
+        String status
+        DateTime createdAt
+    }
+    shipments {
+        String id PK
+        String orderId FK
+        String logisticsProviderId FK
+        String trackingNumber UK
+        String status
+        String pickupLocation
+        String deliveryLocation
+        DateTime dispatchedAt
+        DateTime deliveredAt
+        DateTime createdAt
+    }
+    delivery_events {
+        String id PK
+        String shipmentId FK
+        String status
+        String location
+        DateTime timestamp
+        DateTime createdAt
+    }
+    warehouses {
+        String id PK
+        String name
+        String location
+        Decimal capacity
+        String type
+        String status
+        DateTime createdAt
+        DateTime updatedAt
+    }
+    inventory_lots {
+        String id PK
+        String warehouseId FK
+        String cropId FK
+        Decimal quantity
+        String unit
+        String qualityGrade
+        DateTime receivedAt
+        DateTime expiryDate
+        String status
+        DateTime createdAt
+    }
+    stock_movements {
+        String id PK
+        String inventoryLotId FK
+        String warehouseId FK
+        String type
+        Decimal quantity
+        String referenceId
+        String notes
+        DateTime createdAt
+    }
+    wallet_accounts {
+        String id PK
+        String userId FK
+        String accountType
+        Decimal balance
+        String currency
+        String status
+        DateTime createdAt
+        DateTime updatedAt
+    }
+    ledger_transactions {
+        String id PK
+        String walletId FK
+        String type
+        Decimal amount
+        String currency
+        String description
+        String referenceId
+        String status
+        DateTime createdAt
+    }
+    ledger_entries {
+        String id PK
+        String transactionId FK
+        String accountId FK
+        String entryType
+        Decimal amount
+        Decimal balanceAfter
+        String description
+        DateTime createdAt
+    }
+    settlements {
+        String id PK
+        String orderId FK
+        String farmerId FK
+        String logisticsProviderId FK
+        Decimal platformFee
+        Decimal farmerAmount
+        Decimal logisticsAmount
+        String status
+        DateTime releaseDate
+        DateTime createdAt
+    }
+    payouts {
+        String id PK
+        String settlementId FK
+        String recipientId FK
+        Decimal amount
+        String method
+        String status
+        String transactionReference
+        DateTime createdAt
+    }
+    verifications {
+        String id PK
+        String userId FK
+        String type
+        String status
+        Json documents
+        DateTime verifiedAt
+        DateTime createdAt
+    }
+    disputes {
+        String id PK
+        String orderId FK
+        String raisedById FK
+        String type
+        String description
+        String status
+        DateTime createdAt
+    }
+    audit_logs {
+        String id PK
+        String userId FK
+        String action
+        String entityType
+        String entityId
+        Json details
+        DateTime createdAt
+    }
+    crop_categories {
+        String id PK
+        String name UK
+        String description
+    }
+    units {
+        String id PK
+        String name UK
+        String symbol
+    }
+    roles {
+        String id PK
+        String name UK
+        String description
+    }
+    countries {
+        String id PK
+        String name
+        String code UK
+    }
+    users ||--o| farmer_profiles : "userId"
+    users ||--o{ diagnostic_scans : "userId"
+    users ||--o{ marketplace_listings : "userId"
+    users ||--o{ accounts : "userId"
+    users ||--o{ organization_members : "userId"
+    organizations ||--o{ organization_members : "organizationId"
+    farmer_profiles ||--o{ farms : "farmerId"
+    farms ||--o{ crop_cycles : "farmId"
+    crops ||--o{ crop_cycles : "cropId"
+    farmer_profiles ||--o{ listings : "farmerId"
+    crops |o--o{ listings : "cropId"
+    listings ||--o{ listing_images : "listingId"
+    listings ||--o{ offers : "listingId"
+    users ||--o{ offers : "buyerId"
+    users ||--o{ orders : "buyerId"
+    listings |o--o{ orders : "listingId"
+    orders ||--o{ order_items : "orderId"
+    listings ||--o{ order_items : "listingId"
+    orders ||--o{ shipments : "orderId"
+    logistics_providers |o--o{ shipments : "logisticsProviderId"
+    shipments ||--o{ delivery_events : "shipmentId"
+    warehouses ||--o{ inventory_lots : "warehouseId"
+    crops ||--o{ inventory_lots : "cropId"
+    inventory_lots ||--o{ stock_movements : "inventoryLotId"
+    warehouses ||--o{ stock_movements : "warehouseId"
+    users ||--o{ wallet_accounts : "userId"
+    wallet_accounts ||--o{ ledger_transactions : "walletId"
+    ledger_transactions ||--o{ ledger_entries : "transactionId"
+    wallet_accounts ||--o{ ledger_entries : "accountId"
+    orders ||--o{ settlements : "orderId"
+    farmer_profiles ||--o{ settlements : "farmerId"
+    logistics_providers |o--o{ settlements : "logisticsProviderId"
+    settlements ||--o{ payouts : "settlementId"
+    users ||--o{ payouts : "recipientId"
+    users ||--o{ verifications : "userId"
+    orders ||--o{ disputes : "orderId"
+    users ||--o{ disputes : "raisedById"
+    users |o--o{ audit_logs : "userId"
