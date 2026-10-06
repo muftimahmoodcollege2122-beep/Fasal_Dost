@@ -20,6 +20,10 @@ export const users = pgTable('users', {
   phone: text('phone'),
   displayName: text('display_name'),
   photoUrl: text('photo_url'),
+  passwordHash: text('password_hash'), // ERD: optional (Firebase Auth is primary)
+  language: text('language').default('en').notNull(), // ERD: UI language
+  status: text('status').default('active').notNull(), // ERD: active | suspended | deleted (is_active kept for legacy code)
+  lastLoginAt: timestamp('last_login_at'),
   platform: text('platform').default('web'), // 'web' | 'android' | 'ios'
   role: text('role').default('farmer'), // 'farmer' | 'buyer' | 'agronomist' | 'admin'
   plan: text('plan').default('free').notNull(), // 'free' | 'gold' | 'diamond' | 'unlimited'
@@ -50,6 +54,9 @@ export const farmerProfiles = pgTable('farmer_profiles', {
   cnicNumber: text('cnic_number'),
   cnicFrontUrl: text('cnic_front_url'),
   cnicBackUrl: text('cnic_back_url'),
+  cnicVerified: boolean('cnic_verified').default(false).notNull(), // ERD
+  farmerType: text('farmer_type'), // ERD: e.g. smallholder | commercial | cooperative
+  dateOfBirth: date('date_of_birth'), // ERD
   province: text('province').default('Punjab').notNull(),
   division: text('division'),
   district: text('district'),
@@ -86,6 +93,9 @@ export const diagnosticScans = pgTable('diagnostic_scans', {
   isHealthy: boolean('is_healthy').notNull().default(false),
   overallConfidence: integer('overall_confidence').notNull().default(0),
   imageQuality: text('image_quality').notNull().default('good'), // 'good' | 'blurry' | 'unclear'
+  imageUrl: text('image_url'), // ERD: stored scan image
+  s3Key: text('s3_key'), // ERD: object-storage key
+  processingTimeMs: integer('processing_time_ms'), // ERD
   preventionAdvice: text('prevention_advice'),
   locationProvince: text('location_province'),
   locationDistrict: text('location_district'),
@@ -117,6 +127,7 @@ export const marketplaceListings = pgTable('marketplace_listings', {
   sellerId: text('seller_id').references(() => users.uid, { onDelete: 'cascade' }).notNull(),
   farmerName: text('farmer_name').notNull(),
   farmerPhone: text('farmer_phone').notNull(),
+  sellerEmail: text('seller_email'), // ERD
   province: text('province').notNull(),
   district: text('district').notNull(),
   tehsil: text('tehsil'),
@@ -135,6 +146,7 @@ export const marketplaceListings = pgTable('marketplace_listings', {
   sellerBadge: text('seller_badge').default('Verified Genuine Farmer'),
   status: text('status').notNull().default('available'), // 'available' | 'reserved' | 'sold'
   viewsCount: integer('views_count').default(0),
+  inquiriesCount: integer('inquiries_count').default(0).notNull(), // ERD
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

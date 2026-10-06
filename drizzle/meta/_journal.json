@@ -15,6 +15,13 @@
       "when": 1791284156683,
       "tag": "0001_add_agrifoods_platform_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791284423704,
+      "tag": "0002_align_existing_tables_with_erd",
+      "breakpoints": true
     }
   ]
 }
