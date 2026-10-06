@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791284071093,
+      "tag": "0000_baseline_existing_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791284156683,
+      "tag": "0001_add_agrifoods_platform_tables",
+      "breakpoints": true
+    }
+  ]
+}
