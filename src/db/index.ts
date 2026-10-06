@@ -20,6 +20,8 @@ export const createPool = (): Pool => {
       user: process.env.SQL_USER,
       password: process.env.SQL_PASSWORD,
       database: process.env.SQL_DB_NAME,
+      port: process.env.SQL_PORT ? Number(process.env.SQL_PORT) : 5432,
+      ssl: process.env.SQL_SSL === 'true' ? { rejectUnauthorized: false } : false, // set SQL_SSL=true for AWS RDS
       max: 10,
       connectionTimeoutMillis: 15000,
     });

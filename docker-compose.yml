@@ -12,6 +12,10 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/fasaldost?sslmode=disable
       - REDIS_URL=redis://redis:6379
+      - SQL_HOST=postgres
+      - SQL_DB_NAME=fasaldost
+      - SQL_USER=postgres
+      - SQL_PASSWORD=postgres
     depends_on:
       - postgres
       - redis

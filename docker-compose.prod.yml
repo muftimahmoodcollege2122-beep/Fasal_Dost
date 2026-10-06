@@ -10,6 +10,15 @@ services:
       - PORT=3000
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
+      - SQL_HOST=${SQL_HOST}
+      - SQL_PORT=${SQL_PORT:-5432}
+      - SQL_DB_NAME=${SQL_DB_NAME}
+      - SQL_USER=${SQL_USER}
+      - SQL_PASSWORD=${SQL_PASSWORD}
+      - SQL_ADMIN_USER=${SQL_ADMIN_USER:-${SQL_USER}}
+      - SQL_ADMIN_PASSWORD=${SQL_ADMIN_PASSWORD:-${SQL_PASSWORD}}
+      - SQL_SSL=${SQL_SSL:-true}
+      - RUN_MIGRATIONS=${RUN_MIGRATIONS:-true}
       - REDIS_URL=${REDIS_URL}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
     ports:
