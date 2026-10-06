@@ -28,8 +28,14 @@ COPY --from=builder /app/server ./server
 COPY --from=builder /app/src/db ./src/db
 COPY --from=builder /app/server.ts ./server.ts
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+RUN chmod +x scripts/docker-entrypoint.sh
 COPY --from=builder /app/public ./public
 
 EXPOSE 3000
 
-CMD ["node", "server.ts"]
+# Migrations run first (automatic), then the server starts.
+ENTRYPOINT ["./scripts/docker-entrypoint.sh"]
+CMD ["npx", "tsx", "server.ts"]
