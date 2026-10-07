@@ -61,6 +61,7 @@ model User {
   verifications  Verification[]
   disputesRaised Dispute[]
   auditLogs      AuditLog[]
+  cropScans      CropScan[]
 
   @@map("users")
 }
@@ -244,6 +245,7 @@ model Farm {
   updatedAt     DateTime @updatedAt
 
   cropCycles CropCycle[]
+  scans      CropScan[]
 
   @@index([farmerId])
   @@map("farms")
@@ -260,6 +262,8 @@ model Crop {
   cropCycles CropCycle[]
   listings   Listing[]
   lots       InventoryLot[]
+  scans      CropScan[]
+  diseases   Disease[]
 
   @@map("crops")
 }
@@ -657,4 +661,115 @@ model Country {
   code String @unique
 
   @@map("countries")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 10. Crop scans — HIGH VOLUME (target ~10M scans/day, ~3.65B/year)
+// Rules for these tables:
+//  * Images are NEVER stored in Postgres. Only the object-storage key is kept.
+//  * All four scan tables are RANGE-partitioned by "scannedAt" (daily).
+//    Prisma cannot express partitions: after `prisma migrate dev --create-only`
+//    run `node scripts/partitionize-migration.mjs <migration.sql>` (see docs/SCAN_STORAGE.md).
+//  * Every PK/unique index must contain "scannedAt" (Postgres partition rule).
+//  * Keep secondary indexes minimal: each one multiplies write cost at this volume.
+// ═════════════════════════════════════════════════════════════════════════════
+model Disease {
+  id             String   @id @default(uuid())
+  cropId         String?
+  crop           Crop?    @relation(fields: [cropId], references: [id])
+  name           String
+  scientificName String?
+  category       String   // fungal | bacterial | viral | pest | nutrient | healthy
+  createdAt      DateTime @default(now())
+
+  scans     CropScan[]
+  diagnoses ScanDiagnosis[]
+
+  @@unique([cropId, name])
+  @@map("diseases")
+}
+
+model CropScan {
+  id               String    @default(uuid(7)) @db.Uuid
+  scannedAt        DateTime  @default(now()) @db.Timestamptz(3)
+  userId           String
+  user             User      @relation(fields: [userId], references: [id])
+  cropId           String
+  crop             Crop      @relation(fields: [cropId], references: [id])
+  farmId           String?
+  farm             Farm?     @relation(fields: [farmId], references: [id])
+  geohash          String?   @db.VarChar(8)
+  latitude         Float?
+  longitude        Float?
+  status           String    @default("completed") @db.VarChar(16) // pending | processing | completed | failed
+  modelVersion     String    @db.VarChar(32)
+  source           String?   @db.VarChar(16)                       // mobile | web
+  isHealthy        Boolean?
+  healthScore      Decimal?  @db.Decimal(5, 4)
+  topDiseaseId     String?
+  topDisease       Disease?  @relation(fields: [topDiseaseId], references: [id])
+  topConfidence    Decimal?  @db.Decimal(5, 4)
+  severity         Int?      @db.SmallInt
+  processingTimeMs Int?
+
+  images    ScanImage[]
+  diagnoses ScanDiagnosis[]
+  report    ScanReport?
+
+  @@id([id, scannedAt])
+  @@index([userId, scannedAt(sort: Desc)])
+  @@index([cropId, scannedAt])
+  @@index([topDiseaseId, scannedAt])
+  @@map("crop_scans")
+}
+
+model ScanImage {
+  id         String   @default(uuid(7)) @db.Uuid
+  scanId     String   @db.Uuid
+  scannedAt  DateTime @db.Timestamptz(3)
+  scan       CropScan @relation(fields: [scanId, scannedAt], references: [id, scannedAt], onDelete: Cascade)
+  kind       String   @default("original") @db.VarChar(16) // original | thumbnail | annotated | heatmap
+  storageKey String   // object-storage key, e.g. scans/2026/10/06/<scanId>/original.webp
+  mimeType   String   @db.VarChar(32)
+  widthPx    Int?
+  heightPx   Int?
+  sizeBytes  Int?
+  sha256     String?  @db.Char(64)
+
+  @@id([id, scannedAt])
+  @@index([scanId, scannedAt])
+  @@map("scan_images")
+}
+
+model ScanDiagnosis {
+  id              String   @default(uuid(7)) @db.Uuid
+  scanId          String   @db.Uuid
+  scannedAt       DateTime @db.Timestamptz(3)
+  scan            CropScan @relation(fields: [scanId, scannedAt], references: [id, scannedAt], onDelete: Cascade)
+  diseaseId       String
+  disease         Disease  @relation(fields: [diseaseId], references: [id])
+  confidence      Decimal  @db.Decimal(5, 4)
+  severity        Int?     @db.SmallInt
+  affectedAreaPct Decimal? @db.Decimal(5, 2)
+  bbox            Json?
+
+  @@id([id, scannedAt])
+  @@index([scanId, scannedAt])
+  @@index([diseaseId, scannedAt])
+  @@map("scan_diagnoses")
+}
+
+model ScanReport {
+  scanId           String   @db.Uuid
+  scannedAt        DateTime @db.Timestamptz(3)
+  scan             CropScan @relation(fields: [scanId, scannedAt], references: [id, scannedAt], onDelete: Cascade)
+  language         String   @default("en") @db.VarChar(8)
+  summary          String?
+  symptoms         Json     @default("[]")
+  treatmentPlan    Json     @default("{}")
+  preventionAdvice Json     @default("[]")
+  rawOutputKey     String?  // full raw model output kept in object storage, not in Postgres
+
+  @@id([scanId, scannedAt])
+  @@map("scan_reports")
 }

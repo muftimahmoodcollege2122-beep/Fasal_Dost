@@ -379,6 +379,65 @@ erDiagram
         String name
         String code UK
     }
+    diseases {
+        String id PK
+        String cropId FK "nullable"
+        String name
+        String scientificName "nullable"
+        String category
+        DateTime createdAt
+    }
+    crop_scans {
+        String id
+        DateTime scannedAt
+        String userId FK
+        String cropId FK
+        String farmId FK "nullable"
+        String geohash "nullable"
+        Float latitude "nullable"
+        Float longitude "nullable"
+        String status
+        String modelVersion
+        String source "nullable"
+        Boolean isHealthy "nullable"
+        Decimal healthScore "nullable"
+        String topDiseaseId FK "nullable"
+        Decimal topConfidence "nullable"
+        Int severity "nullable"
+        Int processingTimeMs "nullable"
+    }
+    scan_images {
+        String id
+        String scanId
+        DateTime scannedAt
+        String kind
+        String storageKey
+        String mimeType
+        Int widthPx "nullable"
+        Int heightPx "nullable"
+        Int sizeBytes "nullable"
+        String sha256 "nullable"
+    }
+    scan_diagnoses {
+        String id
+        String scanId
+        DateTime scannedAt
+        String diseaseId FK
+        Decimal confidence
+        Int severity "nullable"
+        Decimal affectedAreaPct "nullable"
+        Json bbox "nullable"
+    }
+    scan_reports {
+        String scanId
+        DateTime scannedAt
+        String language
+        String summary "nullable"
+        Json symptoms
+        Json treatmentPlan
+        Json preventionAdvice
+        String rawOutputKey "nullable"
+    }
     users ||--o| farmer_profiles : "userId to uid"
     users ||--o{ diagnostic_scans : "userId to uid"
     users ||--o{ marketplace_listings : "userId to uid"
@@ -417,3 +476,9 @@ erDiagram
     orders ||--o{ disputes : "orderId"
     users ||--o{ disputes : "raisedById"
     users |o--o{ audit_logs : "userId"
+    crops |o--o{ diseases : "cropId"
+    users ||--o{ crop_scans : "userId"
+    crops ||--o{ crop_scans : "cropId"
+    farms |o--o{ crop_scans : "farmId"
+    diseases |o--o{ crop_scans : "topDiseaseId"
+    diseases ||--o{ scan_diagnoses : "diseaseId"
