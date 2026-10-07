@@ -61,6 +61,7 @@ model User {
   verifications  Verification[]
   disputesRaised Dispute[]
   auditLogs      AuditLog[]
+  cropScans      CropScan[]
 
   @@map("users")
 }
@@ -244,6 +245,7 @@ model Farm {
   updatedAt     DateTime @updatedAt
 
   cropCycles CropCycle[]
+  scans      CropScan[]
 
   @@index([farmerId])
   @@map("farms")
@@ -260,6 +262,8 @@ model Crop {
   cropCycles CropCycle[]
   listings   Listing[]
   lots       InventoryLot[]
+  scans      CropScan[]
+  diseases   Disease[]
 
   @@map("crops")
 }
@@ -657,4 +661,187 @@ model Country {
   code String @unique
 
   @@map("countries")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 10. Crop scans — HIGH VOLUME (target ~10M scans/day, ~3.65B/year)
+// Rules for these tables:
+//  * Images are NEVER stored in Postgres. Only the object-storage key is kept.
+//  * All four scan tables are RANGE-partitioned by "scannedAt" (daily).
+//    Prisma cannot express partitions: after `prisma migrate dev --create-only`
+//    run `node scripts/partitionize-migration.mjs <migration.sql>` (see docs/SCAN_STORAGE.md).
+//  * Every PK/unique index must contain "scannedAt" (Postgres partition rule).
+//  * Keep secondary indexes minimal: each one multiplies write cost at this volume.
+// ═════════════════════════════════════════════════════════════════════════════
+model Disease {
+  id             String   @id @default(uuid())
+  cropId         String?
+  crop           Crop?    @relation(fields: [cropId], references: [id])
+  name           String
+  scientificName String?
+  category       String   // fungal | bacterial | viral | pest | nutrient | healthy
+  createdAt      DateTime @default(now())
+
+  scans     CropScan[]
+  diagnoses ScanDiagnosis[]
+  contents  DiseaseContent[]
+  samples   DatasetSample[]
+
+  @@unique([cropId, name])
+  @@map("diseases")
+}
+
+model CropScan {
+  id               String    @default(uuid(7)) @db.Uuid
+  scannedAt        DateTime  @default(now()) @db.Timestamptz(3)
+  userId           String
+  user             User      @relation(fields: [userId], references: [id])
+  cropId           String
+  crop             Crop      @relation(fields: [cropId], references: [id])
+  farmId           String?
+  farm             Farm?     @relation(fields: [farmId], references: [id])
+  geohash          String?   @db.VarChar(8)
+  latitude         Float?
+  longitude        Float?
+  status           String    @default("completed") @db.VarChar(16) // pending | processing | completed | failed
+  modelVersion     String    @db.VarChar(32)
+  source           String?   @db.VarChar(16)                       // mobile | web
+  isHealthy        Boolean?
+  healthScore      Decimal?  @db.Decimal(5, 4)
+  topDiseaseId     String?
+  topDisease       Disease?  @relation(fields: [topDiseaseId], references: [id])
+  topConfidence    Decimal?  @db.Decimal(5, 4)
+  severity         Int?      @db.SmallInt
+  processingTimeMs Int?
+  trainingConsent  Boolean   @default(false)                      // user agreed their image may train models
+  labelStatus      String    @default("ai_predicted") @db.VarChar(16) // ai_predicted | user_confirmed | expert_verified | rejected
+  meta             Json?                                           // device, app version, capture conditions
+
+  images    ScanImage[]
+  diagnoses ScanDiagnosis[]
+  report    ScanReport?
+
+  @@id([id, scannedAt])
+  @@index([userId, scannedAt(sort: Desc)])
+  @@index([cropId, scannedAt])
+  @@index([topDiseaseId, scannedAt])
+  @@map("crop_scans")
+}
+
+model ScanImage {
+  id         String   @default(uuid(7)) @db.Uuid
+  scanId     String   @db.Uuid
+  scannedAt  DateTime @db.Timestamptz(3)
+  scan       CropScan @relation(fields: [scanId, scannedAt], references: [id, scannedAt], onDelete: Cascade)
+  kind       String   @default("original") @db.VarChar(16) // original | thumbnail | annotated | heatmap
+  storageKey String   // object-storage key, e.g. scans/2026/10/06/<scanId>/original.webp
+  mimeType   String   @db.VarChar(32)
+  widthPx    Int?
+  heightPx   Int?
+  sizeBytes  Int?
+  sha256     String?  @db.Char(64)
+
+  @@id([id, scannedAt])
+  @@index([scanId, scannedAt])
+  @@map("scan_images")
+}
+
+model ScanDiagnosis {
+  id              String   @default(uuid(7)) @db.Uuid
+  scanId          String   @db.Uuid
+  scannedAt       DateTime @db.Timestamptz(3)
+  scan            CropScan @relation(fields: [scanId, scannedAt], references: [id, scannedAt], onDelete: Cascade)
+  diseaseId       String
+  disease         Disease  @relation(fields: [diseaseId], references: [id])
+  confidence      Decimal  @db.Decimal(5, 4)
+  severity        Int?     @db.SmallInt
+  affectedAreaPct Decimal? @db.Decimal(5, 2)
+  bbox            Json?
+
+  @@id([id, scannedAt])
+  @@index([scanId, scannedAt])
+  @@index([diseaseId, scannedAt])
+  @@map("scan_diagnoses")
+}
+
+model ScanReport {
+  scanId           String   @db.Uuid
+  scannedAt        DateTime @db.Timestamptz(3)
+  scan             CropScan @relation(fields: [scanId, scannedAt], references: [id, scannedAt], onDelete: Cascade)
+  language         String   @default("en") @db.VarChar(8)
+  summary          String?
+  symptoms         Json     @default("[]")
+  treatmentPlan    Json     @default("{}")
+  preventionAdvice Json     @default("[]")
+  rawOutputKey     String?  // full raw model output kept in object storage, not in Postgres
+
+  @@id([scanId, scannedAt])
+  @@map("scan_reports")
+}
+
+// ── 10b. Disease knowledge base + permanent labeled dataset ──────────────────
+// DiseaseContent is YOUR OWN curated text (description, causes, treatment, advice).
+// Once the AI is removed from the backend, results are served from here.
+// DatasetSample and ScanFeedback have NO foreign key to the partitioned scan tables:
+// scan partitions are archived over time, the dataset must never depend on them.
+model DiseaseContent {
+  id          String   @id @default(uuid())
+  diseaseId   String
+  disease     Disease  @relation(fields: [diseaseId], references: [id], onDelete: Cascade)
+  language    String   @db.VarChar(8)
+  version     Int      @default(1)
+  description String
+  causes      String?
+  symptoms    Json     @default("[]")
+  treatment   Json     @default("{}") // { organic: [], chemical: [], cultural: [] }
+  prevention  Json     @default("[]")
+  advice      String?
+  reviewedBy  String?                 // agronomist who approved this text
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([diseaseId, language, version])
+  @@index([diseaseId, language, isPublished])
+  @@map("disease_contents")
+}
+
+model ScanFeedback {
+  id                 String   @id @default(uuid(7)) @db.Uuid
+  scanId             String   @db.Uuid
+  scannedAt          DateTime @db.Timestamptz(3)
+  userId             String
+  isCorrect          Boolean
+  correctedDiseaseId String?
+  note               String?
+  createdAt          DateTime @default(now())
+
+  @@index([scanId])
+  @@index([userId, createdAt])
+  @@map("scan_feedback")
+}
+
+model DatasetSample {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  scanId         String   @db.Uuid     // origin scan, plain column (no FK)
+  scannedAt      DateTime @db.Timestamptz(3)
+  storageKey     String                // image object, tagged retain=permanent, never expired
+  sha256         String   @unique @db.Char(64) // exact-duplicate guard
+  phash          String?  @db.Char(16)         // near-duplicate guard
+  cropId         String
+  diseaseId      String
+  disease        Disease  @relation(fields: [diseaseId], references: [id])
+  labelSource    String   @db.VarChar(16)      // ai | user | expert
+  labelStatus    String   @db.VarChar(16)      // user_confirmed | expert_verified
+  confidence     Decimal? @db.Decimal(5, 4)
+  split          String   @default("train") @db.VarChar(8) // train | val | test, fixed by hash, never reshuffled
+  geohash        String?  @db.VarChar(5)       // coarse location only, no user id stored
+  embedding      Unsupported("vector(512)")?   // pgvector, for similarity matching
+  embeddingModel String?  @db.VarChar(32)
+  meta           Json?
+  createdAt      DateTime @default(now())
+
+  @@index([diseaseId, split])
+  @@index([cropId, diseaseId])
+  @@map("dataset_samples")
 }
