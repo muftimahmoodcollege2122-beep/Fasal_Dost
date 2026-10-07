@@ -23,5 +23,8 @@ if (patched === 0 && !/PARTITION BY RANGE/.test(sql)) {
 }
 const maint = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../prisma/sql/scan_partition_maintenance.sql'), 'utf8');
 if (!sql.includes('create_scan_partitions')) sql += '\n-- scan partition maintenance\n' + maint;
+const ds = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../prisma/sql/dataset_setup.sql'), 'utf8');
+if (!/CREATE EXTENSION[^;]*vector/i.test(sql)) sql = 'CREATE EXTENSION IF NOT EXISTS vector;\n\n' + sql;
+if (!sql.includes('dataset_samples_embedding_hnsw')) sql += '\n-- dataset similarity index\n' + ds;
 fs.writeFileSync(file, sql);
 console.log(`patched ${patched} table(s) in ${file}`);

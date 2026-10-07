@@ -405,6 +405,9 @@ erDiagram
         Decimal topConfidence "nullable"
         Int severity "nullable"
         Int processingTimeMs "nullable"
+        Boolean trainingConsent
+        String labelStatus
+        Json meta "nullable"
     }
     scan_images {
         String id
@@ -437,6 +440,51 @@ erDiagram
         Json treatmentPlan
         Json preventionAdvice
         String rawOutputKey "nullable"
+    }
+    disease_contents {
+        String id PK
+        String diseaseId FK
+        String language
+        Int version
+        String description
+        String causes "nullable"
+        Json symptoms
+        Json treatment
+        Json prevention
+        String advice "nullable"
+        String reviewedBy "nullable"
+        Boolean isPublished
+        DateTime createdAt
+        DateTime updatedAt
+    }
+    scan_feedback {
+        String id PK
+        String scanId
+        DateTime scannedAt
+        String userId
+        Boolean isCorrect
+        String correctedDiseaseId "nullable"
+        String note "nullable"
+        DateTime createdAt
+    }
+    dataset_samples {
+        String id PK
+        String scanId
+        DateTime scannedAt
+        String storageKey
+        String sha256 UK
+        String phash "nullable"
+        String cropId
+        String diseaseId FK
+        String labelSource
+        String labelStatus
+        Decimal confidence "nullable"
+        String split
+        String geohash "nullable"
+        Unsupported embedding
+        String embeddingModel "nullable"
+        Json meta "nullable"
+        DateTime createdAt
     }
     users ||--o| farmer_profiles : "userId to uid"
     users ||--o{ diagnostic_scans : "userId to uid"
@@ -482,3 +530,5 @@ erDiagram
     farms |o--o{ crop_scans : "farmId"
     diseases |o--o{ crop_scans : "topDiseaseId"
     diseases ||--o{ scan_diagnoses : "diseaseId"
+    diseases ||--o{ disease_contents : "diseaseId"
+    diseases ||--o{ dataset_samples : "diseaseId"
